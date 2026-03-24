@@ -1,0 +1,43 @@
+name: "gym_cargas"
+description: "App de academia para anotação de cargas - GymCargas"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Ajustado para maior compatibilidade
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # Versões estáveis e compatíveis entre si:
+  firebase_core: ^4.5.0
+  firebase_auth: ^6.2.0
+  cloud_firestore: ^6.1.3
+  google_sign_in: ^7.2.0
+  intl: ^0.20.2
+  image_picker: ^1.1.3
+  firebase_storage: 13.1.0
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.1
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logo.png
+    - assets/bicepsdireito.png
+    - assets/bicepsesquerdo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo1.png"  
+  web:
+    generate: true
+    image_path: "assets/logo1.png"
