@@ -3,30 +3,55 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-// ── MÚSCULOS DISPONÍVEIS ──────────────────────────────────────────────────────
+// ── MÚSCULOS ──────────────────────────────────────────────────────────────────
 const List<Map<String, dynamic>> kMusculos = [
-  {'nome': 'Peito',      'icon': '🫀', 'cor': Color(0xFFE53935)},
-  {'nome': 'Costas',     'icon': '🔙', 'cor': Color(0xFF8E24AA)},
-  {'nome': 'Ombro',      'icon': '💪', 'cor': Color(0xFF1E88E5)},
-  {'nome': 'Bíceps',     'icon': '💪', 'cor': Color(0xFF00ACC1)},
-  {'nome': 'Tríceps',    'icon': '💪', 'cor': Color(0xFF43A047)},
-  {'nome': 'Pernas',     'icon': '🦵', 'cor': Color(0xFFFB8C00)},
-  {'nome': 'Glúteos',    'icon': '🍑', 'cor': Color(0xFFD81B60)},
-  {'nome': 'Abdômen',    'icon': '🧱', 'cor': Color(0xFF6D4C41)},
-  {'nome': 'Panturrilha','icon': '🦶', 'cor': Color(0xFF00897B)},
-  {'nome': 'Antebraço',  'icon': '💪', 'cor': Color(0xFF546E7A)},
-  {'nome': 'Cardio',     'icon': '❤️', 'cor': Color(0xFFE53935)},
-  {'nome': 'Full Body',  'icon': '🏋️', 'cor': Color(0xFFFF8F00)},
+  {'nome': 'Peito',      'cor': Color(0xFFE53935)},
+  {'nome': 'Costas',     'cor': Color(0xFF8E24AA)},
+  {'nome': 'Ombro',      'cor': Color(0xFF1E88E5)},
+  {'nome': 'Bíceps',     'cor': Color(0xFF00ACC1)},
+  {'nome': 'Tríceps',    'cor': Color(0xFF43A047)},
+  {'nome': 'Pernas',     'cor': Color(0xFFFB8C00)},
+  {'nome': 'Glúteos',    'cor': Color(0xFFD81B60)},
+  {'nome': 'Abdômen',    'cor': Color(0xFF6D4C41)},
+  {'nome': 'Panturrilha','cor': Color(0xFF00897B)},
+  {'nome': 'Antebraço',  'cor': Color(0xFF546E7A)},
+  {'nome': 'Cardio',     'cor': Color(0xFFE53935)},
+  {'nome': 'Full Body',  'cor': Color(0xFFFF8F00)},
 ];
+
+// ── DIFICULDADE ───────────────────────────────────────────────────────────────
+const List<Map<String, dynamic>> kDificuldades = [
+  {'valor': 'facil',   'label': 'F', 'cor': Color(0xFF43A047)},
+  {'valor': 'medio',   'label': 'M', 'cor': Color(0xFFFB8C00)},
+  {'valor': 'dificil', 'label': 'D', 'cor': Color(0xFFE53935)},
+];
+
+// ── Normaliza nome de exercício (remove espaços extras, lowercase para comparar)
+String _normalizarNome(String nome) =>
+    nome.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+// Distância de Levenshtein para agrupar nomes parecidos
+int _levenshtein(String a, String b) {
+  final m = a.length, n = b.length;
+  final dp = List.generate(m + 1, (i) => List.filled(n + 1, 0));
+  for (int i = 0; i <= m; i++) dp[i][0] = i;
+  for (int j = 0; j <= n; j++) dp[0][j] = j;
+  for (int i = 1; i <= m; i++) {
+    for (int j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] == b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]]
+              .reduce((x, y) => x < y ? x : y);
+    }
+  }
+  return dp[m][n];
+}
 
 class NovoTreinoPage extends StatefulWidget {
   final String? docId;
   final Map<String, dynamic>? dadosIniciais;
-
   const NovoTreinoPage({super.key, this.docId, this.dadosIniciais});
-
   bool get modoEdicao => docId != null;
-
   @override
   State<NovoTreinoPage> createState() => _NovoTreinoPageState();
 }
@@ -39,9 +64,14 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
   bool _favorito = false;
   final Set<String> _musculosSelecionados = {};
 
+  // Autocomplete — lista de exercícios já usados pelo usuário
+  List<String> _exerciciosConhecidos = [];
+
   @override
   void initState() {
     super.initState();
+    _carregarExerciciosConhecidos();
+
     if (widget.modoEdicao && widget.dadosIniciais != null) {
       final dados = widget.dadosIniciais!;
       _nomeTreinoController.text = dados['nome_treino'] ?? '';
@@ -55,6 +85,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         final series = (ex['series'] as List? ?? []).map((s) => {
               'carga': TextEditingController(text: s['carga'] ?? ''),
               'reps': TextEditingController(text: s['reps'] ?? ''),
+              'dificuldade': s['dificuldade'] ?? '',
             }).toList();
         _exercicios.add({
           'nome': TextEditingController(text: ex['nome'] ?? ''),
@@ -65,6 +96,38 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
     } else {
       _adicionarExercicio();
     }
+  }
+
+  // ── CARREGA EXERCÍCIOS CONHECIDOS DO HISTÓRICO ────────────────────────────
+  Future<void> _carregarExerciciosConhecidos() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final snap = await FirebaseFirestore.instance
+          .collection('treinos')
+          .where('userId', isEqualTo: uid)
+          .get();
+
+      final Set<String> nomes = {};
+      for (final doc in snap.docs) {
+        final exs = (doc.data()['exercicios'] as List? ?? []);
+        for (final ex in exs) {
+          final nome = (ex['nome'] as String? ?? '').trim();
+          if (nome.isNotEmpty) nomes.add(nome);
+        }
+      }
+
+      // Agrupa nomes similares (distância <= 2) — mantém o mais comum
+      final List<String> resultado = [];
+      final List<String> lista = nomes.toList()..sort();
+      for (final nome in lista) {
+        final normalizado = _normalizarNome(nome);
+        final jaExiste = resultado.any((r) =>
+            _levenshtein(_normalizarNome(r), normalizado) <= 2);
+        if (!jaExiste) resultado.add(nome);
+      }
+
+      if (mounted) setState(() => _exerciciosConhecidos = resultado..sort());
+    } catch (_) {}
   }
 
   @override
@@ -82,8 +145,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
 
   Future<bool> _confirmarSaida() async {
     final temConteudo = _nomeTreinoController.text.isNotEmpty ||
-        _exercicios.any((ex) =>
-            (ex['nome'] as TextEditingController).text.isNotEmpty);
+        _exercicios.any(
+            (ex) => (ex['nome'] as TextEditingController).text.isNotEmpty);
     if (!temConteudo) return true;
     final confirmar = await showDialog<bool>(
       context: context,
@@ -91,7 +154,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         backgroundColor: const Color(0xFF1A1A1A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Descartar treino?",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style:
+                TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: const Text("Você tem dados não salvos. Quer sair mesmo assim?",
             style: TextStyle(color: Colors.white60)),
         actions: [
@@ -165,65 +229,50 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                   style: TextStyle(color: Colors.white38, fontSize: 12)),
               const SizedBox(height: 20),
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 10, runSpacing: 10,
                 children: kMusculos.map((m) {
                   final nome = m['nome'] as String;
                   final cor = m['cor'] as Color;
-                  final icon = m['icon'] as String;
-                  final selecionado = _musculosSelecionados.contains(nome);
+                                    final sel = _musculosSelecionados.contains(nome);
                   return GestureDetector(
                     onTap: () {
-                      setModalState(() {
-                        setState(() {
-                          if (selecionado) {
-                            _musculosSelecionados.remove(nome);
-                          } else {
-                            _musculosSelecionados.add(nome);
-                          }
-                        });
-                      });
+                      setModalState(() => setState(() => sel
+                          ? _musculosSelecionados.remove(nome)
+                          : _musculosSelecionados.add(nome)));
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: selecionado
+                        color: sel
                             ? cor.withOpacity(0.2)
                             : Colors.white.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: selecionado ? cor : Colors.white.withOpacity(0.1),
-                          width: selecionado ? 1.5 : 1,
-                        ),
+                            color: sel ? cor : Colors.white.withOpacity(0.1),
+                            width: sel ? 1.5 : 1),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(icon, style: const TextStyle(fontSize: 14)),
-                          const SizedBox(width: 6),
-                          Text(nome,
-                              style: TextStyle(
-                                  color: selecionado ? cor : Colors.white60,
-                                  fontSize: 13,
-                                  fontWeight: selecionado
-                                      ? FontWeight.bold
-                                      : FontWeight.normal)),
-                          if (selecionado) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.check_circle, color: cor, size: 14),
-                          ],
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                                Text(nome,
+                            style: TextStyle(
+                                color: sel ? cor : Colors.white60,
+                                fontSize: 13,
+                                fontWeight: sel
+                                    ? FontWeight.bold
+                                    : FontWeight.normal)),
+                        if (sel) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.check_circle, color: cor, size: 14),
                         ],
-                      ),
+                      ]),
                     ),
                   );
                 }).toList(),
               ),
               const SizedBox(height: 20),
               SizedBox(
-                width: double.infinity,
-                height: 48,
+                width: double.infinity, height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orangeAccent,
@@ -269,6 +318,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
             "series": (ex['series'] as List).map((s) => {
                   "carga": (s['carga'] as TextEditingController).text,
                   "reps": (s['reps'] as TextEditingController).text,
+                  "dificuldade": s['dificuldade'] ?? '',
                 }).toList(),
           };
         }).toList(),
@@ -280,17 +330,17 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
             .update(treinoData);
       } else {
         treinoData["data_criacao"] = FieldValue.serverTimestamp();
-        await FirebaseFirestore.instance.collection('treinos').add(treinoData);
+        await FirebaseFirestore.instance
+            .collection('treinos')
+            .add(treinoData);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green,
-            content: Text(widget.modoEdicao
-                ? "Treino atualizado!"
-                : "Treino salvo com sucesso!"),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: Colors.green,
+          content: Text(widget.modoEdicao
+              ? "Treino atualizado!"
+              : "Treino salvo com sucesso!"),
+        ));
         Navigator.pop(context);
       }
     } catch (e) {
@@ -308,7 +358,11 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
       _exercicios.add({
         'nome': TextEditingController(),
         'series': [
-          {'carga': TextEditingController(), 'reps': TextEditingController()}
+          {
+            'carga': TextEditingController(),
+            'reps': TextEditingController(),
+            'dificuldade': '',
+          }
         ],
       });
     });
@@ -319,6 +373,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
       _exercicios[i]['series'].add({
         'carga': TextEditingController(),
         'reps': TextEditingController(),
+        'dificuldade': '',
       });
     });
   }
@@ -345,6 +400,15 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         }
         _exercicios.removeAt(index);
       }
+    });
+  }
+
+  void _setDificuldade(int exIdx, int sIdx, String valor) {
+    setState(() {
+      // Toggle — clicando de novo desmarca
+      final atual = _exercicios[exIdx]['series'][sIdx]['dificuldade'];
+      _exercicios[exIdx]['series'][sIdx]['dificuldade'] =
+          atual == valor ? '' : valor;
     });
   }
 
@@ -443,6 +507,36 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                 itemCount: _exercicios.length,
                 itemBuilder: (context, index) => _buildCardExercicio(index),
               ),
+              // ── BOTÃO ADICIONAR EXERCÍCIO (abaixo do último) ─────────
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _adicionarExercicio,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: Colors.orangeAccent.withOpacity(0.3),
+                        width: 1.5),
+                    color: Colors.orangeAccent.withOpacity(0.05),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_circle_outline,
+                          color: Colors.orangeAccent, size: 20),
+                      SizedBox(width: 10),
+                      Text('ADICIONAR EXERCÍCIO',
+                          style: TextStyle(
+                              color: Colors.orangeAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.8)),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
               Center(child: _buildSaveButton()),
               const SizedBox(height: 40),
@@ -453,11 +547,301 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
     );
   }
 
+  // ── CARD DO EXERCÍCIO COM AUTOCOMPLETE ────────────────────────────────────
+  Widget _buildCardExercicio(int exIdx) {
+    final nomeCtrl = _exercicios[exIdx]['nome'] as TextEditingController;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── NOME COM AUTOCOMPLETE ──────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 8, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.orangeAccent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text('${exIdx + 1}',
+                        style: const TextStyle(
+                            color: Colors.orangeAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Autocomplete<String>(
+                    optionsBuilder: (TextEditingValue value) {
+                      if (value.text.isEmpty) return const [];
+                      final query = _normalizarNome(value.text);
+                      return _exerciciosConhecidos.where((nome) {
+                        final n = _normalizarNome(nome);
+                        return n.contains(query) ||
+                            _levenshtein(n, query) <= 2;
+                      });
+                    },
+                    displayStringForOption: (opt) => opt,
+                    fieldViewBuilder:
+                        (ctx, ctrl, focusNode, onSubmitted) {
+                      // Sincroniza com o controller real
+                      ctrl.text = nomeCtrl.text;
+                      ctrl.selection = TextSelection.fromPosition(
+                          TextPosition(offset: ctrl.text.length));
+                      ctrl.addListener(() => nomeCtrl.text = ctrl.text);
+                      return TextField(
+                        controller: ctrl,
+                        focusNode: focusNode,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15),
+                        decoration: const InputDecoration(
+                          hintText: "Nome do Exercício",
+                          hintStyle: TextStyle(
+                              color: Colors.white24,
+                              fontSize: 14,
+                              fontWeight: FontWeight.normal),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding:
+                              EdgeInsets.symmetric(vertical: 4),
+                        ),
+                      );
+                    },
+                    optionsViewBuilder: (ctx, onSelected, options) {
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          color: const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(12),
+                          elevation: 8,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                                maxHeight: 200, maxWidth: 280),
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 6),
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              separatorBuilder: (_, __) => const Divider(
+                                  color: Colors.white10, height: 1),
+                              itemBuilder: (ctx, i) {
+                                final opt =
+                                    options.elementAt(i);
+                                return InkWell(
+                                  onTap: () => onSelected(opt),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 10),
+                                    child: Row(children: [
+                                      const Icon(Icons.history,
+                                          color: Colors.white38,
+                                          size: 14),
+                                      const SizedBox(width: 8),
+                                      Text(opt,
+                                          style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 14)),
+                                    ]),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    onSelected: (String selected) {
+                      setState(
+                          () => nomeCtrl.text = selected);
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.redAccent, size: 20),
+                  onPressed: () => _removerExercicio(exIdx),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(color: Colors.white10, height: 20),
+
+          // ── CABEÇALHO COLUNAS ──────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: const [
+                SizedBox(width: 28),
+                SizedBox(width: 10),
+                Expanded(
+                    child: Text("CARGA (kg)",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold))),
+                SizedBox(width: 10),
+                Expanded(
+                    child: Text("REPS",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold))),
+                SizedBox(width: 10),
+                SizedBox(
+                    width: 90,
+                    child: Text("DIFICULDADE",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold))),
+                SizedBox(width: 36),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // ── SÉRIES ────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _exercicios[exIdx]['series'].length,
+              itemBuilder: (context, sIdx) {
+                final serie = _exercicios[exIdx]['series'][sIdx];
+                final dificuldadeAtual =
+                    serie['dificuldade'] as String? ?? '';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      // Número da série
+                      Container(
+                        width: 28, height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Center(
+                          child: Text("${sIdx + 1}",
+                              style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Carga
+                      Expanded(
+                          child: _buildMiniField(
+                              serie['carga'] as TextEditingController,
+                              "0")),
+                      const SizedBox(width: 10),
+                      // Reps
+                      Expanded(
+                          child: _buildMiniField(
+                              serie['reps'] as TextEditingController,
+                              "0")),
+                      const SizedBox(width: 10),
+                      // Dificuldade — 3 botões emoji
+                      SizedBox(
+                        width: 90,
+                        child: Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceEvenly,
+                          children: kDificuldades.map((d) {
+                            final val = d['valor'] as String;
+                            final label = d['label'] as String;
+                            final cor = d['cor'] as Color;
+                            final ativo = dificuldadeAtual == val;
+                            return GestureDetector(
+                              onTap: () =>
+                                  _setDificuldade(exIdx, sIdx, val),
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 150),
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: ativo
+                                      ? cor.withOpacity(0.25)
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ativo ? cor : Colors.white12,
+                                    width: ativo ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(label,
+                                      style: TextStyle(
+                                          color: ativo ? cor : Colors.white38,
+                                          fontSize: 11,
+                                          fontWeight: ativo
+                                              ? FontWeight.bold
+                                              : FontWeight.normal)),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      // Remover série
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline,
+                            color: Colors.white24, size: 18),
+                        onPressed: () => _removerSerie(exIdx, sIdx),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                            minWidth: 36, minHeight: 36),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+            child: TextButton.icon(
+              onPressed: () => _adicionarSerie(exIdx),
+              icon: const Icon(Icons.add_circle_outline,
+                  size: 16, color: Colors.white38),
+              label: const Text("nova série",
+                  style:
+                      TextStyle(color: Colors.white38, fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMusculosSeletor() {
     return GestureDetector(
       onTap: _abrirSeletorMusculos,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(14),
@@ -471,37 +855,38 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                 color: Colors.orangeAccent.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text("💪", style: TextStyle(fontSize: 16)),
+              child:
+                  const Icon(Icons.fitness_center, color: Colors.orangeAccent, size: 18),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: _musculosSelecionados.isEmpty
                   ? const Text("Toque para selecionar os músculos",
-                      style: TextStyle(color: Colors.white38, fontSize: 14))
+                      style: TextStyle(
+                          color: Colors.white38, fontSize: 14))
                   : Wrap(
                       spacing: 6,
                       runSpacing: 4,
                       children: _musculosSelecionados.map((nome) {
                         final m = kMusculos.firstWhere(
                             (km) => km['nome'] == nome,
-                            orElse: () =>
-                                {'cor': Colors.orangeAccent, 'icon': '💪'});
+                            orElse: () => {
+                                  'cor': Colors.orangeAccent,
+                                  
+                                });
                         final cor = m['cor'] as Color;
-                        final icon = m['icon'] as String;
-                        return Container(
+                                                return Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: cor.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: cor.withOpacity(0.4)),
+                            border: Border.all(
+                                color: cor.withOpacity(0.4)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(icon,
-                                  style: const TextStyle(fontSize: 11)),
-                              const SizedBox(width: 4),
                               Text(nome,
                                   style: TextStyle(
                                       color: cor,
@@ -513,7 +898,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                       }).toList(),
                     ),
             ),
-            const Icon(Icons.keyboard_arrow_down, color: Colors.white24),
+            const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white24),
           ],
         ),
       ),
@@ -524,7 +910,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
     return GestureDetector(
       onTap: () => _selecionarData(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(14),
@@ -562,171 +949,29 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
               ],
             ),
             const Spacer(),
-            const Icon(Icons.keyboard_arrow_down, color: Colors.white24),
+            const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCardExercicio(int exIdx) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 8, 0),
-            child: Row(
-              children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text('${exIdx + 1}',
-                        style: const TextStyle(
-                            color: Colors.orangeAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _exercicios[exIdx]['nome'],
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: "Nome do Exercício",
-                      hintStyle: TextStyle(
-                          color: Colors.white24,
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 4),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: Colors.redAccent, size: 20),
-                  onPressed: () => _removerExercicio(exIdx),
-                ),
-              ],
-            ),
-          ),
-          const Divider(color: Colors.white10, height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: const [
-                SizedBox(width: 28),
-                SizedBox(width: 10),
-                Expanded(
-                    child: Text("CARGA (kg)",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.orangeAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold))),
-                SizedBox(width: 10),
-                Expanded(
-                    child: Text("REPETIÇÕES",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.orangeAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold))),
-                SizedBox(width: 40),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _exercicios[exIdx]['series'].length,
-              itemBuilder: (context, sIdx) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Center(
-                          child: Text("${sIdx + 1}",
-                              style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12)),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _buildMiniField(
-                              _exercicios[exIdx]['series'][sIdx]['carga'],
-                              "0")),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _buildMiniField(
-                              _exercicios[exIdx]['series'][sIdx]['reps'],
-                              "0")),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline,
-                            color: Colors.white24, size: 18),
-                        onPressed: () => _removerSerie(exIdx, sIdx),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                            minWidth: 36, minHeight: 36),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
-            child: TextButton.icon(
-              onPressed: () => _adicionarSerie(exIdx),
-              icon: const Icon(Icons.add_circle_outline,
-                  size: 16, color: Colors.white38),
-              label: const Text("nova série",
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniField(TextEditingController controller, String hint) {
+  Widget _buildMiniField(
+      TextEditingController controller, String hint) {
     return TextField(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType:
+          const TextInputType.numberWithOptions(decimal: true),
       textAlign: TextAlign.center,
       style: const TextStyle(
-          color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.bold),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white12, fontSize: 14),
+        hintStyle:
+            const TextStyle(color: Colors.white12, fontSize: 14),
         filled: true,
         fillColor: Colors.black26,
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -735,8 +980,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
             borderSide: const BorderSide(color: Colors.white10)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide:
-                const BorderSide(color: Colors.orangeAccent, width: 1.5)),
+            borderSide: const BorderSide(
+                color: Colors.orangeAccent, width: 1.5)),
       ),
     );
   }
@@ -762,15 +1007,16 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
         hintText: label,
-        hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
+        hintStyle:
+            const TextStyle(color: Colors.white24, fontSize: 14),
         prefixIcon: Icon(icon, color: Colors.orangeAccent, size: 20),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: Colors.white10)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: Colors.orangeAccent, width: 1.5)),
+            borderSide: const BorderSide(
+                color: Colors.orangeAccent, width: 1.5)),
       ),
     );
   }
@@ -783,15 +1029,18 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
           gradient: _salvando
-              ? LinearGradient(
-                  colors: [Colors.grey.shade700, Colors.grey.shade600])
+              ? LinearGradient(colors: [
+                  Colors.grey.shade700,
+                  Colors.grey.shade600
+                ])
               : const LinearGradient(
                   colors: [Color(0xFFFF8F00), Color(0xFFFF5722)]),
           boxShadow: _salvando
               ? null
               : [
                   BoxShadow(
-                      color: const Color(0xFFFF5722).withOpacity(0.35),
+                      color:
+                          const Color(0xFFFF5722).withOpacity(0.35),
                       blurRadius: 12,
                       offset: const Offset(0, 4))
                 ],
@@ -809,7 +1058,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(
-                        width: 18, height: 18,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2)),
                     SizedBox(width: 10),
@@ -820,7 +1070,9 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                             fontSize: 15)),
                   ])
               : Text(
-                  widget.modoEdicao ? "SALVAR ALTERAÇÕES" : "SALVAR TREINO",
+                  widget.modoEdicao
+                      ? "SALVAR ALTERAÇÕES"
+                      : "SALVAR TREINO",
                   style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
