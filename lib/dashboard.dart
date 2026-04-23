@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
 import 'perfil.dart';
+import 'treino_detalhe.dart';
+import 'comparar_treinos.dart';
+import 'criar_treino_page.dart';
+import 'templates_page.dart';
 import 'evolucao.dart';
 
 class GymDashboard extends StatefulWidget {
@@ -20,6 +25,7 @@ class _GymDashboardState extends State<GymDashboard> {
 
   final _buscaController = TextEditingController();
   String _termoBusca = '';
+  String _ordemHistorico = 'data'; // 'data' | 'volume' | 'nome'
 
   @override
   void initState() {
@@ -65,8 +71,8 @@ class _GymDashboardState extends State<GymDashboard> {
           await Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) => const NovoTreinoPage()));
-          setState(() {}); // refresh após adicionar
+                  builder: (_) => const CriarTreinoPage()));
+          setState(() {});
         },
         backgroundColor: Colors.orangeAccent,
         child: const Icon(Icons.add, color: Colors.black),
@@ -444,7 +450,17 @@ class _GymDashboardState extends State<GymDashboard> {
       'Full Body': Color(0xFFFF8F00),
     };
 
-    return Container(
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TreinoDetalhePage(
+            docId: doc.id,
+            dados: data,
+          ),
+        ),
+      ),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
@@ -498,6 +514,12 @@ class _GymDashboardState extends State<GymDashboard> {
                 onTap: () => _editarTreino(doc),
               ),
               _buildAcaoBtn(
+                icon: Icons.share_rounded,
+                color: Colors.tealAccent,
+                tooltip: 'Compartilhar',
+                onTap: () => _compartilharTreino(doc),
+              ),
+              _buildAcaoBtn(
                 icon: Icons.delete_rounded,
                 color: Colors.redAccent,
                 tooltip: 'Excluir',
@@ -536,6 +558,7 @@ class _GymDashboardState extends State<GymDashboard> {
           ),
         ],
       ),
+    ),  // GestureDetector
     );
   }
 
@@ -680,17 +703,46 @@ class _GymDashboardState extends State<GymDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('HISTÓRICO',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 15),
+          // ── HEADER COM ORDENAÇÃO ───────────────────────────────────
+          Row(
+            children: [
+              const Text('HISTÓRICO',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold)),
+              const Spacer(),
+              // Botão comparar
+              IconButton(
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const CompararTreinosPage())),
+                icon: const Icon(Icons.compare_arrows_rounded,
+                    color: Colors.white38, size: 22),
+                tooltip: 'Comparar treinos',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              // Botão template
+              IconButton(
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const TemplatesPage())),
+                icon: const Icon(Icons.bookmark_outlined,
+                    color: Colors.white38, size: 22),
+                tooltip: 'Templates',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              _buildOrdemSelector(),
+            ],
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _buscaController,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'Buscar treino (ex: Peito)',
+              hintText: 'Buscar treino...',
               hintStyle: const TextStyle(color: Colors.white38),
               prefixIcon:
                   const Icon(Icons.search, color: Colors.white24),
@@ -715,16 +767,37 @@ class _GymDashboardState extends State<GymDashboard> {
                       child: CircularProgressIndicator(
                           color: Colors.orangeAccent));
                 }
-                final treinos = snap.data!.docs.where((doc) {
+
+                // Filtra por busca
+                var treinos = snap.data!.docs.where((doc) {
                   final nome = (doc['nome_treino'] ?? '')
                       .toString()
                       .toLowerCase();
                   return nome.contains(_termoBusca);
                 }).toList();
 
+                // Ordena conforme seleção
+                if (_ordemHistorico == 'nome') {
+                  treinos.sort((a, b) =>
+                      (a['nome_treino'] ?? '').toString()
+                          .compareTo((b['nome_treino'] ?? '').toString()));
+                } else if (_ordemHistorico == 'volume') {
+                  double _vol(QueryDocumentSnapshot d) {
+                    double v = 0;
+                    for (final ex in (d['exercicios'] as List? ?? [])) {
+                      for (final s in (ex['series'] as List? ?? [])) {
+                        v += (double.tryParse(s['carga']?.toString() ?? '') ?? 0) *
+                            (double.tryParse(s['reps']?.toString() ?? '') ?? 0);
+                      }
+                    }
+                    return v;
+                  }
+                  treinos.sort((a, b) => _vol(b).compareTo(_vol(a)));
+                }
+                // 'data' já vem ordenado do Firestore
+
                 if (treinos.isEmpty) {
-                  return Center(
-                      child: _buildVazio());
+                  return Center(child: _buildVazio());
                 }
                 return ListView.builder(
                   itemCount: treinos.length,
@@ -737,5 +810,180 @@ class _GymDashboardState extends State<GymDashboard> {
         ],
       ),
     );
+  }
+
+  // ── SELETOR DE ORDENAÇÃO ───────────────────────────────────────────────────
+  Widget _buildOrdemSelector() {
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: const RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (ctx) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text('ORDENAR POR',
+                    style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2)),
+                const SizedBox(height: 12),
+                _buildOrdemOpcao(ctx, 'data', Icons.calendar_today_rounded, 'Data (mais recente)'),
+                _buildOrdemOpcao(ctx, 'volume', Icons.monitor_weight_outlined, 'Volume (maior primeiro)'),
+                _buildOrdemOpcao(ctx, 'nome', Icons.sort_by_alpha_rounded, 'Nome (A → Z)'),
+              ],
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.sort_rounded,
+              color: Colors.orangeAccent, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            _ordemHistorico == 'data'
+                ? 'Data'
+                : _ordemHistorico == 'volume'
+                    ? 'Volume'
+                    : 'Nome',
+            style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.keyboard_arrow_down,
+              color: Colors.white38, size: 14),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildOrdemOpcao(
+      BuildContext ctx, String valor, IconData icon, String label) {
+    final sel = _ordemHistorico == valor;
+    return ListTile(
+      onTap: () {
+        setState(() => _ordemHistorico = valor);
+        Navigator.pop(ctx);
+      },
+      contentPadding: EdgeInsets.zero,
+      leading: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          color: sel
+              ? Colors.orangeAccent.withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon,
+            color: sel ? Colors.orangeAccent : Colors.white38,
+            size: 20),
+      ),
+      title: Text(label,
+          style: TextStyle(
+              color: sel ? Colors.orangeAccent : Colors.white70,
+              fontWeight:
+                  sel ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14)),
+      trailing: sel
+          ? const Icon(Icons.check_circle_rounded,
+              color: Colors.orangeAccent, size: 20)
+          : null,
+    );
+  }
+
+  // ── COMPARTILHAR TREINO ────────────────────────────────────────────────────
+  Future<void> _compartilharTreino(QueryDocumentSnapshot doc) async {
+    final data = doc.data() as Map<String, dynamic>;
+    final nome = data['nome_treino'] ?? 'Treino';
+    final ts = data['data_treino'] as Timestamp?;
+    final dataStr = ts != null
+        ? DateFormat('dd/MM/yyyy').format(ts.toDate())
+        : '-';
+    final exercicios = (data['exercicios'] as List? ?? []);
+    final musculos =
+        (data['musculos'] as List? ?? []).cast<String>();
+
+    double volume = 0;
+    final buffer = StringBuffer();
+    buffer.writeln('💪 *$nome*');
+    buffer.writeln('📅 $dataStr');
+    if (musculos.isNotEmpty) {
+      buffer.writeln('🎯 ${musculos.join(', ')}');
+    }
+    buffer.writeln();
+
+    for (final ex in exercicios) {
+      final nomeEx = (ex['nome'] as String? ?? '').trim();
+      if (nomeEx.isEmpty) continue;
+      buffer.writeln('⚡ *$nomeEx*');
+      final series = (ex['series'] as List? ?? []);
+      for (int i = 0; i < series.length; i++) {
+        final s = series[i];
+        final c = double.tryParse(s['carga']?.toString() ?? '') ?? 0;
+        final r = s['reps']?.toString() ?? '0';
+        final dif = (s['dificuldade'] as String? ?? '');
+        final difStr = dif == 'facil'
+            ? ' ✅'
+            : dif == 'medio'
+                ? ' ⚡'
+                : dif == 'dificil'
+                    ? ' 🔥'
+                    : '';
+        volume += c * (double.tryParse(r) ?? 0);
+        buffer.writeln(
+            '  ${i + 1}ª ${c % 1 == 0 ? c.toInt() : c}kg × $r reps$difStr');
+      }
+      buffer.writeln();
+    }
+
+    buffer.writeln(
+        '📊 Volume total: ${(volume / 1000).toStringAsFixed(2)}t');
+    buffer.writeln('🏋️ GYM CARGAS');
+
+    final texto = buffer.toString();
+    await Clipboard.setData(ClipboardData(text: texto));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF1A1A1A),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Row(children: const [
+            Icon(Icons.check_circle_rounded,
+                color: Colors.tealAccent, size: 20),
+            SizedBox(width: 10),
+            Text('Resumo copiado! Cole onde quiser 📋',
+                style: TextStyle(color: Colors.white)),
+          ]),
+        ),
+      );
+    }
   }
 }

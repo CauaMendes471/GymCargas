@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'novo_treino.dart' show NovoTreinoPage;
 
 // ── Distância de Levenshtein ──────────────────────────────────────────────────
 int _levenshtein(String a, String b) {
@@ -206,17 +207,13 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: const Text('EVOLUÇÃO',
             style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 18)),
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios,
-              color: Colors.orangeAccent),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: _carregando
           ? const Center(
@@ -458,7 +455,10 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16)),
         ),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NovoTreinoPage()),
+            ),
         icon: const Icon(Icons.add_circle_outline,
             color: Colors.orangeAccent, size: 20),
         label: const Text('REGISTRAR NOVO TREINO',
