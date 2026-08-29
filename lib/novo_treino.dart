@@ -2,48 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-
-// ── MÚSCULOS ──────────────────────────────────────────────────────────────────
-const List<Map<String, dynamic>> kMusculos = [
-  {'nome': 'Peito',       'cor': Color(0xFFE53935)},
-  {'nome': 'Costas',      'cor': Color(0xFF8E24AA)},
-  {'nome': 'Ombro',       'cor': Color(0xFF1E88E5)},
-  {'nome': 'Bíceps',      'cor': Color(0xFF00ACC1)},
-  {'nome': 'Tríceps',     'cor': Color(0xFF43A047)},
-  {'nome': 'Pernas',      'cor': Color(0xFFFB8C00)},
-  {'nome': 'Glúteos',     'cor': Color(0xFFD81B60)},
-  {'nome': 'Abdômen',     'cor': Color(0xFF6D4C41)},
-  {'nome': 'Panturrilha', 'cor': Color(0xFF00897B)},
-  {'nome': 'Antebraço',   'cor': Color(0xFF546E7A)},
-  {'nome': 'Cardio',      'cor': Color(0xFFE53935)},
-  {'nome': 'Full Body',   'cor': Color(0xFFFF8F00)},
-];
-
-// ── DIFICULDADE ───────────────────────────────────────────────────────────────
-const List<Map<String, dynamic>> kDificuldades = [
-  {'valor': 'facil',   'label': 'F', 'cor': Color(0xFF43A047)},
-  {'valor': 'medio',   'label': 'M', 'cor': Color(0xFFFB8C00)},
-  {'valor': 'dificil', 'label': 'D', 'cor': Color(0xFFE53935)},
-];
-
-String _normalizarNome(String nome) =>
-    nome.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-int _levenshtein(String a, String b) {
-  final m = a.length, n = b.length;
-  final dp = List.generate(m + 1, (i) => List.filled(n + 1, 0));
-  for (int i = 0; i <= m; i++) dp[i][0] = i;
-  for (int j = 0; j <= n; j++) dp[0][j] = j;
-  for (int i = 1; i <= m; i++) {
-    for (int j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] == b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]]
-              .reduce((x, y) => x < y ? x : y);
-    }
-  }
-  return dp[m][n];
-}
+import 'constants/app_constants.dart';
+import 'utils/string_utils.dart';
 
 class NovoTreinoPage extends StatefulWidget {
   final String? docId;
@@ -134,8 +94,8 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
       // Deduplica exercícios com fuzzy
       final List<String> resultadoEx = [];
       for (final nome in nomesEx.toList()..sort()) {
-        final n = _normalizarNome(nome);
-        if (!resultadoEx.any((r) => _levenshtein(_normalizarNome(r), n) <= 2)) {
+        final n = normalizarNome(nome);
+        if (!resultadoEx.any((r) => levenshtein(normalizarNome(r), n) <= 2)) {
           resultadoEx.add(nome);
         }
       }
@@ -246,7 +206,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                       letterSpacing: 1)),
               const SizedBox(height: 6),
               const Text('Selecione todos que se aplicam',
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 10,
@@ -255,37 +215,45 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                   final nome = m['nome'] as String;
                   final cor = m['cor'] as Color;
                   final sel = _musculosSelecionados.contains(nome);
-                  return GestureDetector(
-                    onTap: () => setModal(() => setState(() => sel
-                        ? _musculosSelecionados.remove(nome)
-                        : _musculosSelecionados.add(nome))),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: sel
-                            ? cor.withOpacity(0.2)
-                            : Colors.white.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color:
-                                sel ? cor : Colors.white.withOpacity(0.1),
-                            width: sel ? 1.5 : 1),
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => setModal(() => setState(() => sel
+                          ? _musculosSelecionados.remove(nome)
+                          : _musculosSelecionados.add(nome))),
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? cor.withOpacity(0.2)
+                              : Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: sel
+                                  ? cor
+                                  : Colors.white.withOpacity(0.1),
+                              width: sel ? 1.5 : 1),
+                        ),
+                        child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(nome,
+                                  style: TextStyle(
+                                      color: sel ? cor : Colors.white60,
+                                      fontSize: 13,
+                                      fontWeight: sel
+                                          ? FontWeight.bold
+                                          : FontWeight.normal)),
+                              if (sel) ...[
+                                const SizedBox(width: 4),
+                                Icon(Icons.check_circle,
+                                    color: cor, size: 14),
+                              ],
+                            ]),
                       ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(nome,
-                            style: TextStyle(
-                                color: sel ? cor : Colors.white60,
-                                fontSize: 13,
-                                fontWeight: sel
-                                    ? FontWeight.bold
-                                    : FontWeight.normal)),
-                        if (sel) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.check_circle, color: cor, size: 14),
-                        ],
-                      ]),
                     ),
                   );
                 }).toList(),
@@ -327,6 +295,23 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
     setState(() => _salvando = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
+
+      // Volume total do treino (Σ carga × reps de todas as séries).
+      // Persistido no Firestore para não precisar ser recalculado
+      // no cliente toda vez (ex.: ordenação por volume no histórico).
+      double volumeTotal = 0;
+      for (final ex in _exercicios) {
+        for (final s in (ex['series'] as List)) {
+          final carga = double.tryParse(
+                  (s['carga'] as TextEditingController).text) ??
+              0;
+          final reps = double.tryParse(
+                  (s['reps'] as TextEditingController).text) ??
+              0;
+          volumeTotal += carga * reps;
+        }
+      }
+
       final Map<String, dynamic> treinoData = {
         'userId': user?.uid ?? 'anonimo',
         'nome_treino': _nomeTreinoController.text.trim(),
@@ -334,6 +319,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         'musculos': _musculosSelecionados.toList(),
         'favorito': _favorito,
         'is_template': _isTemplate,
+        'volume_total': volumeTotal,
         'exercicios': _exercicios
             .map((ex) => {
                   'nome':
@@ -548,7 +534,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                     SizedBox(width: 4),
                     Text('arraste para reordenar',
                         style: TextStyle(
-                            color: Colors.white24, fontSize: 10)),
+                            color: Colors.white54, fontSize: 10)),
                   ]),
                 ],
               ),
@@ -581,31 +567,35 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
               ),
 
               const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _adicionarExercicio,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: Colors.orangeAccent.withOpacity(0.3),
-                        width: 1.5),
-                    color: Colors.orangeAccent.withOpacity(0.05),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_circle_outline,
-                          color: Colors.orangeAccent, size: 20),
-                      SizedBox(width: 10),
-                      Text('ADICIONAR EXERCÍCIO',
-                          style: TextStyle(
-                              color: Colors.orangeAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              letterSpacing: 0.8)),
-                    ],
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _adicionarExercicio,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: Colors.orangeAccent.withOpacity(0.3),
+                          width: 1.5),
+                      color: Colors.orangeAccent.withOpacity(0.05),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_circle_outline,
+                            color: Colors.orangeAccent, size: 20),
+                        SizedBox(width: 10),
+                        Text('ADICIONAR EXERCÍCIO',
+                            style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                letterSpacing: 0.8)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -621,63 +611,67 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
 
   // ── TOGGLE TEMPLATE ────────────────────────────────────────────────────────
   Widget _buildTemplateToggle() {
-    return GestureDetector(
-      onTap: () => setState(() => _isTemplate = !_isTemplate),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: _isTemplate
-              ? Colors.purpleAccent.withOpacity(0.1)
-              : Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: _isTemplate
-                  ? Colors.purpleAccent.withOpacity(0.5)
-                  : Colors.white10),
-        ),
-        child: Row(children: [
-          Icon(
-            _isTemplate
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_outline,
-            color:
-                _isTemplate ? Colors.purpleAccent : Colors.white38,
-            size: 22,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _isTemplate = !_isTemplate),
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _isTemplate
+                ? Colors.purpleAccent.withOpacity(0.1)
+                : Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: _isTemplate
+                    ? Colors.purpleAccent.withOpacity(0.5)
+                    : Colors.white10),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isTemplate
-                      ? 'Modo Template ativado'
-                      : 'Salvar como template',
-                  style: TextStyle(
-                      color: _isTemplate
-                          ? Colors.purpleAccent
-                          : Colors.white70,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14),
-                ),
-                Text(
-                  _isTemplate
-                      ? 'Sem data — use como base para treinos futuros'
-                      : 'Cria um modelo reutilizável sem data',
-                  style: const TextStyle(
-                      color: Colors.white38, fontSize: 11),
-                ),
-              ],
+          child: Row(children: [
+            Icon(
+              _isTemplate
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_outline,
+              color:
+                  _isTemplate ? Colors.purpleAccent : Colors.white38,
+              size: 22,
             ),
-          ),
-          Switch(
-            value: _isTemplate,
-            onChanged: (v) => setState(() => _isTemplate = v),
-            activeColor: Colors.purpleAccent,
-          ),
-        ]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isTemplate
+                        ? 'Modo Template ativado'
+                        : 'Salvar como template',
+                    style: TextStyle(
+                        color: _isTemplate
+                            ? Colors.purpleAccent
+                            : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14),
+                  ),
+                  Text(
+                    _isTemplate
+                        ? 'Sem data — use como base para treinos futuros'
+                        : 'Cria um modelo reutilizável sem data',
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _isTemplate,
+              onChanged: (v) => setState(() => _isTemplate = v),
+              activeColor: Colors.purpleAccent,
+            ),
+          ]),
+        ),
       ),
     );
   }
@@ -699,7 +693,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
             hintText:
                 'Ex: joelho doendo, dormi mal, PR no supino... (opcional)',
             hintStyle:
-                const TextStyle(color: Colors.white24, fontSize: 13),
+                const TextStyle(color: Colors.white54, fontSize: 13),
             prefixIcon: const Padding(
               padding: EdgeInsets.only(bottom: 40),
               child: Icon(Icons.notes_rounded,
@@ -760,11 +754,11 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                 child: Autocomplete<String>(
                   optionsBuilder: (TextEditingValue value) {
                     if (value.text.isEmpty) return const [];
-                    final query = _normalizarNome(value.text);
+                    final query = normalizarNome(value.text);
                     return _exerciciosConhecidos.where((nome) {
-                      final n = _normalizarNome(nome);
+                      final n = normalizarNome(nome);
                       return n.contains(query) ||
-                          _levenshtein(n, query) <= 2;
+                          levenshtein(n, query) <= 2;
                     });
                   },
                   displayStringForOption: (opt) => opt,
@@ -784,7 +778,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                       decoration: const InputDecoration(
                         hintText: 'Nome do Exercício',
                         hintStyle: TextStyle(
-                            color: Colors.white24,
+                            color: Colors.white54,
                             fontSize: 14,
                             fontWeight: FontWeight.normal),
                         border: InputBorder.none,
@@ -931,34 +925,38 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
                           final label = d['label'] as String;
                           final cor = d['cor'] as Color;
                           final ativo = dif == val;
-                          return GestureDetector(
-                            onTap: () =>
-                                _setDificuldade(exIdx, sIdx, val),
-                            child: AnimatedContainer(
-                              duration:
-                                  const Duration(milliseconds: 150),
-                              width: 26,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                color: ativo
-                                    ? cor.withOpacity(0.25)
-                                    : Colors.transparent,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color:
-                                        ativo ? cor : Colors.white12,
-                                    width: ativo ? 1.5 : 1),
-                              ),
-                              child: Center(
-                                child: Text(label,
-                                    style: TextStyle(
-                                        color: ativo
-                                            ? cor
-                                            : Colors.white38,
-                                        fontSize: 11,
-                                        fontWeight: ativo
-                                            ? FontWeight.bold
-                                            : FontWeight.normal)),
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () =>
+                                  _setDificuldade(exIdx, sIdx, val),
+                              customBorder: const CircleBorder(),
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 150),
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: ativo
+                                      ? cor.withOpacity(0.25)
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color:
+                                          ativo ? cor : Colors.white12,
+                                      width: ativo ? 1.5 : 1),
+                                ),
+                                child: Center(
+                                  child: Text(label,
+                                      style: TextStyle(
+                                          color: ativo
+                                              ? cor
+                                              : Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: ativo
+                                              ? FontWeight.bold
+                                              : FontWeight.normal)),
+                                ),
                               ),
                             ),
                           );
@@ -986,7 +984,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
               icon: const Icon(Icons.add_circle_outline,
                   size: 16, color: Colors.white38),
               label: const Text('nova série',
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
+                  style: TextStyle(color: Colors.white70, fontSize: 12)),
             ),
           ),
         ],
@@ -1030,7 +1028,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
             fillColor: Colors.white.withOpacity(0.05),
             hintText: hint,
             hintStyle:
-                const TextStyle(color: Colors.white24, fontSize: 14),
+                const TextStyle(color: Colors.white54, fontSize: 14),
             prefixIcon: const Icon(Icons.edit_note_rounded,
                 color: Colors.orangeAccent, size: 20),
             enabledBorder: OutlineInputBorder(
@@ -1090,111 +1088,119 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
   }
 
   Widget _buildMusculosSeletor() {
-    return GestureDetector(
-      onTap: _abrirSeletorMusculos,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.orangeAccent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _abrirSeletorMusculos,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.fitness_center,
+                  color: Colors.orangeAccent, size: 18),
             ),
-            child: const Icon(Icons.fitness_center,
-                color: Colors.orangeAccent, size: 18),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: _musculosSelecionados.isEmpty
-                ? const Text('Toque para selecionar os músculos',
-                    style:
-                        TextStyle(color: Colors.white38, fontSize: 14))
-                : Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _musculosSelecionados.map((nome) {
-                      final m = kMusculos.firstWhere(
-                          (km) => km['nome'] == nome,
-                          orElse: () =>
-                              {'cor': Colors.orangeAccent});
-                      final cor = m['cor'] as Color;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: cor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: cor.withOpacity(0.4)),
-                        ),
-                        child: Text(nome,
-                            style: TextStyle(
-                                color: cor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold)),
-                      );
-                    }).toList(),
-                  ),
-          ),
-          const Icon(Icons.keyboard_arrow_down,
-              color: Colors.white24),
-        ]),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _musculosSelecionados.isEmpty
+                  ? const Text('Toque para selecionar os músculos',
+                      style:
+                          TextStyle(color: Colors.white70, fontSize: 14))
+                  : Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _musculosSelecionados.map((nome) {
+                        final m = kMusculos.firstWhere(
+                            (km) => km['nome'] == nome,
+                            orElse: () =>
+                                {'cor': Colors.orangeAccent});
+                        final cor = m['cor'] as Color;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: cor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border:
+                                Border.all(color: cor.withOpacity(0.4)),
+                          ),
+                          child: Text(nome,
+                              style: TextStyle(
+                                  color: cor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        );
+                      }).toList(),
+                    ),
+            ),
+            const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white24),
+          ]),
+        ),
       ),
     );
   }
 
   Widget _buildDatePickerField() {
-    return GestureDetector(
-      onTap: () => _selecionarData(context),
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.orangeAccent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.calendar_month,
-                color: Colors.orangeAccent, size: 20),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _selecionarData(context),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white10),
           ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('DATA DO TREINO',
-                  style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8)),
-              const SizedBox(height: 2),
-              Text(
-                DateFormat('dd/MM/yyyy').format(_dataSelecionada),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
               ),
-            ],
-          ),
-          const Spacer(),
-          const Icon(Icons.keyboard_arrow_down,
-              color: Colors.white24),
-        ]),
+              child: const Icon(Icons.calendar_month,
+                  color: Colors.orangeAccent, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('DATA DO TREINO',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8)),
+                const SizedBox(height: 2),
+                Text(
+                  DateFormat('dd/MM/yyyy').format(_dataSelecionada),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white24),
+          ]),
+        ),
       ),
     );
   }
@@ -1248,7 +1254,7 @@ class _NovoTreinoPageState extends State<NovoTreinoPage> {
         fillColor: Colors.white.withOpacity(0.05),
         hintText: label,
         hintStyle:
-            const TextStyle(color: Colors.white24, fontSize: 14),
+            const TextStyle(color: Colors.white54, fontSize: 14),
         prefixIcon: Icon(icon, color: Colors.orangeAccent, size: 20),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),

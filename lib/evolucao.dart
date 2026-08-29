@@ -1,29 +1,10 @@
-import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
-
-// ── Distância de Levenshtein ──────────────────────────────────────────────────
-int _levenshtein(String a, String b) {
-  final m = a.length, n = b.length;
-  final dp = List.generate(m + 1, (i) => List.filled(n + 1, 0));
-  for (int i = 0; i <= m; i++) dp[i][0] = i;
-  for (int j = 0; j <= n; j++) dp[0][j] = j;
-  for (int i = 1; i <= m; i++) {
-    for (int j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] == b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + [dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]]
-              .reduce((x, y) => x < y ? x : y);
-    }
-  }
-  return dp[m][n];
-}
-
-String _norm(String s) =>
-    s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+import 'utils/string_utils.dart';
+import 'widgets/chart_painters.dart';
 
 class EvolucaoPage extends StatefulWidget {
   const EvolucaoPage({super.key});
@@ -64,14 +45,14 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
   }
 
   void _filtrarExercicios() {
-    final query = _norm(_searchController.text);
+    final query = normalizarNome(_searchController.text);
     if (query.isEmpty) {
       setState(() => _exerciciosFiltrados = List.from(_exercicios));
       return;
     }
     final resultado = _exercicios.where((nome) {
-      final n = _norm(nome);
-      return n.contains(query) || _levenshtein(n, query) <= 3;
+      final n = normalizarNome(nome);
+      return n.contains(query) || levenshtein(n, query) <= 3;
     }).toList();
     setState(() => _exerciciosFiltrados = resultado);
   }
@@ -100,9 +81,9 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
             (contagem[b] ?? 0).compareTo(contagem[a] ?? 0));
 
       for (final nome in lista) {
-        final normalizado = _norm(nome);
+        final normalizado = normalizarNome(nome);
         final jaExiste = resultado
-            .any((r) => _levenshtein(_norm(r), normalizado) <= 2);
+            .any((r) => levenshtein(normalizarNome(r), normalizado) <= 2);
         if (!jaExiste) resultado.add(nome);
       }
       resultado.sort();
@@ -169,7 +150,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
         final exs = (data['exercicios'] as List? ?? []);
         for (final ex in exs) {
           final nome = (ex['nome'] as String? ?? '').trim();
-          if (_levenshtein(_norm(nome), _norm(exercicio)) > 2) continue;
+          if (levenshtein(normalizarNome(nome), normalizarNome(exercicio)) > 2) continue;
           double cargaMax = 0;
           for (final s in (ex['series'] as List? ?? [])) {
             final c =
@@ -228,7 +209,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
                     children: [
                       const Text('BUSCAR EXERCÍCIO',
                           style: TextStyle(
-                              color: Colors.white38,
+                              color: Colors.white70,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2)),
@@ -272,7 +253,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
                         const SizedBox(height: 24),
                         const Text('HISTÓRICO DETALHADO',
                             style: TextStyle(
-                                color: Colors.white38,
+                                color: Colors.white70,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.2)),
@@ -293,10 +274,10 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
     return Autocomplete<String>(
       optionsBuilder: (TextEditingValue value) {
         if (value.text.isEmpty) return const [];
-        final query = _norm(value.text);
+        final query = normalizarNome(value.text);
         return _exercicios.where((nome) {
-          final n = _norm(nome);
-          return n.contains(query) || _levenshtein(n, query) <= 3;
+          final n = normalizarNome(nome);
+          return n.contains(query) || levenshtein(n, query) <= 3;
         });
       },
       displayStringForOption: (opt) => opt,
@@ -311,7 +292,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
             fillColor: Colors.white.withOpacity(0.07),
             hintText: 'Ex: leg press, supino, agachamento...',
             hintStyle:
-                const TextStyle(color: Colors.white38, fontSize: 13),
+                const TextStyle(color: Colors.white70, fontSize: 13),
             prefixIcon: const Icon(Icons.search,
                 color: Colors.orangeAccent, size: 20),
             suffixIcon: ctrl.text.isNotEmpty
@@ -383,8 +364,8 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
           _exercicioSelecionado = selected;
           _exerciciosFiltrados = _exercicios
               .where((e) =>
-                  _norm(e).contains(_norm(selected)) ||
-                  _levenshtein(_norm(e), _norm(selected)) <= 3)
+                  normalizarNome(e).contains(normalizarNome(selected)) ||
+                  levenshtein(normalizarNome(e), normalizarNome(selected)) <= 3)
               .toList();
         });
         _carregarEvolucao(selected);
@@ -403,35 +384,39 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
         itemBuilder: (ctx, i) {
           final nome = _exerciciosFiltrados[i];
           final sel = nome == _exercicioSelecionado;
-          return GestureDetector(
-            onTap: () {
-              setState(() => _exercicioSelecionado = nome);
-              _carregarEvolucao(nome);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: sel
-                    ? Colors.orangeAccent.withOpacity(0.2)
-                    : Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: sel
-                        ? Colors.orangeAccent
-                        : Colors.white12,
-                    width: sel ? 1.5 : 1),
-              ),
-              child: Text(nome,
-                  style: TextStyle(
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() => _exercicioSelecionado = nome);
+                _carregarEvolucao(nome);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: sel
+                      ? Colors.orangeAccent.withOpacity(0.2)
+                      : Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
                       color: sel
                           ? Colors.orangeAccent
-                          : Colors.white54,
-                      fontSize: 12,
-                      fontWeight: sel
-                          ? FontWeight.bold
-                          : FontWeight.normal)),
+                          : Colors.white12,
+                      width: sel ? 1.5 : 1),
+                ),
+                child: Text(nome,
+                    style: TextStyle(
+                        color: sel
+                            ? Colors.orangeAccent
+                            : Colors.white54,
+                        fontSize: 12,
+                        fontWeight: sel
+                            ? FontWeight.bold
+                            : FontWeight.normal)),
+              ),
             ),
           );
         },
@@ -519,7 +504,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
           Text(label,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: Colors.white38,
+                  color: Colors.white70,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5)),
@@ -542,25 +527,29 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
         children: List.generate(opcoes.length, (i) {
           final sel = _abaGrafico == i;
           return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _abaGrafico = i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color:
-                      sel ? Colors.orangeAccent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _abaGrafico = i),
+                borderRadius: BorderRadius.circular(8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color:
+                        sel ? Colors.orangeAccent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(opcoes[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: sel ? Colors.black : Colors.white54,
+                        fontSize: 12,
+                        fontWeight: sel
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      )),
                 ),
-                child: Text(opcoes[i],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: sel ? Colors.black : Colors.white54,
-                      fontSize: 12,
-                      fontWeight: sel
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    )),
               ),
             ),
           );
@@ -594,7 +583,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
           width: larguraTotal.clamp(300, double.infinity),
           height: alturaGrafico + 60,
           child: CustomPaint(
-            painter: _GraficoPainter(
+            painter: GraficoCargaPainter(
               pontos: _pontos,
               maxCarga: maxCarga,
               minCarga: minCarga,
@@ -615,7 +604,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
       children: [
         const Text('FILTRAR POR TREINO',
             style: TextStyle(
-                color: Colors.white38,
+                color: Colors.white70,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2)),
@@ -641,32 +630,36 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
   Widget _buildTreinoChip(String? nome) {
     final sel = _treinoFiltro == nome;
     final label = nome ?? 'Todos';
-    return GestureDetector(
-      onTap: () {
-        setState(() => _treinoFiltro = nome);
-        if (_exercicioSelecionado != null) {
-          _carregarEvolucao(_exercicioSelecionado!);
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: sel
-              ? Colors.orangeAccent.withOpacity(0.2)
-              : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: sel ? Colors.orangeAccent : Colors.white12,
-              width: sel ? 1.5 : 1),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() => _treinoFiltro = nome);
+          if (_exercicioSelecionado != null) {
+            _carregarEvolucao(_exercicioSelecionado!);
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: sel
+                ? Colors.orangeAccent.withOpacity(0.2)
+                : Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: sel ? Colors.orangeAccent : Colors.white12,
+                width: sel ? 1.5 : 1),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: sel ? Colors.orangeAccent : Colors.white54,
+                  fontSize: 12,
+                  fontWeight:
+                      sel ? FontWeight.bold : FontWeight.normal)),
         ),
-        child: Text(label,
-            style: TextStyle(
-                color: sel ? Colors.orangeAccent : Colors.white54,
-                fontSize: 12,
-                fontWeight:
-                    sel ? FontWeight.bold : FontWeight.normal)),
       ),
     );
   }
@@ -683,7 +676,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
         child: const Center(
           child: Text('Nenhum dado disponível.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white38, fontSize: 14)),
+              style: TextStyle(color: Colors.white70, fontSize: 14)),
         ),
       );
     }
@@ -753,7 +746,7 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
               width: larguraTotal.clamp(300, double.infinity),
               height: alturaGrafico + 60,
               child: CustomPaint(
-                painter: _VolumePainter(
+                painter: VolumePainter(
                   pontos: pontosAjustados,
                   maxVol: maxVol,
                   minVol: minVol,
@@ -844,11 +837,11 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
             const SizedBox(height: 16),
             const Text('Nenhum treino registrado ainda',
                 style:
-                    TextStyle(color: Colors.white38, fontSize: 16)),
+                    TextStyle(color: Colors.white70, fontSize: 16)),
             const SizedBox(height: 8),
             const Text('Registre treinos para ver sua evolução!',
                 style:
-                    TextStyle(color: Colors.white24, fontSize: 13)),
+                    TextStyle(color: Colors.white54, fontSize: 13)),
           ],
         ),
       );
@@ -863,250 +856,8 @@ class _EvolucaoPageState extends State<EvolucaoPage> {
           child: Text(
             'Nenhum dado encontrado para este exercício.\nVerifique se as cargas foram preenchidas.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white38, fontSize: 14),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ),
       );
 } // fim de _EvolucaoPageState
-
-// ── CUSTOM PAINTERS ──────────────────────────────────────────────────────────
-
-class _GraficoPainter extends CustomPainter {
-  final List<Map<String, dynamic>> pontos;
-  final double maxCarga, minCarga, range, alturaGrafico;
-
-  _GraficoPainter({
-    required this.pontos,
-    required this.maxCarga,
-    required this.minCarga,
-    required this.range,
-    required this.alturaGrafico,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (pontos.isEmpty) return;
-    final larguraPonto = size.width / pontos.length;
-    List<Offset> offsets = [];
-    for (int i = 0; i < pontos.length; i++) {
-      final carga = pontos[i]['carga'] as double;
-      final x = i * larguraPonto + larguraPonto / 2;
-      final y = alturaGrafico -
-          ((carga - minCarga) / range) * (alturaGrafico - 20) - 10;
-      offsets.add(Offset(x, y));
-    }
-
-    final paintGrade = Paint()
-      ..color = Colors.white.withOpacity(0.06)
-      ..strokeWidth = 1;
-    for (int i = 0; i <= 4; i++) {
-      final y = (alturaGrafico / 4) * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paintGrade);
-    }
-
-    if (offsets.length > 1) {
-      final pathArea = Path()
-        ..moveTo(offsets.first.dx, alturaGrafico);
-      for (final o in offsets) pathArea.lineTo(o.dx, o.dy);
-      pathArea.lineTo(offsets.last.dx, alturaGrafico);
-      pathArea.close();
-      canvas.drawPath(
-          pathArea,
-          Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFFFF8F00).withOpacity(0.3),
-                const Color(0xFFFF5722).withOpacity(0.0),
-              ],
-            ).createShader(
-                Rect.fromLTWH(0, 0, size.width, alturaGrafico)));
-
-      final pathLinha = Path()
-        ..moveTo(offsets.first.dx, offsets.first.dy);
-      for (int i = 1; i < offsets.length; i++) {
-        pathLinha.lineTo(offsets[i].dx, offsets[i].dy);
-      }
-      canvas.drawPath(
-          pathLinha,
-          Paint()
-            ..color = const Color(0xFFFF8F00)
-            ..strokeWidth = 2.5
-            ..strokeCap = StrokeCap.round
-            ..style = PaintingStyle.stroke);
-    }
-
-    for (int i = 0; i < offsets.length; i++) {
-      final o = offsets[i];
-      final carga = pontos[i]['carga'] as double;
-      final data = pontos[i]['data'] as DateTime;
-      final isPR = carga == maxCarga;
-
-      canvas.drawCircle(
-          o,
-          isPR ? 7 : 5,
-          Paint()
-            ..color =
-                isPR ? Colors.amberAccent : const Color(0xFFFF8F00)
-            ..style = PaintingStyle.fill);
-      canvas.drawCircle(
-          o,
-          isPR ? 7 : 5,
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5);
-
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${carga.toStringAsFixed(0)}kg',
-          style: TextStyle(
-              color: isPR ? Colors.amberAccent : Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold),
-        ),
-        textDirection: ui.TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(o.dx - tp.width / 2, o.dy - 22));
-
-      final dp = TextPainter(
-        text: TextSpan(
-          text: DateFormat('dd/MM').format(data),
-          style: const TextStyle(color: Colors.white38, fontSize: 9),
-        ),
-        textDirection: ui.TextDirection.ltr,
-      )..layout();
-      dp.paint(
-          canvas, Offset(o.dx - dp.width / 2, alturaGrafico + 8));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class _VolumePainter extends CustomPainter {
-  final List<Map<String, dynamic>> pontos;
-  final double maxVol, minVol, range, alturaGrafico;
-  final String unidade;
-  final bool isToneladas;
-
-  _VolumePainter({
-    required this.pontos,
-    required this.maxVol,
-    required this.minVol,
-    required this.range,
-    required this.alturaGrafico,
-    required this.unidade,
-    required this.isToneladas,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (pontos.isEmpty) return;
-    final larguraPonto = size.width / pontos.length;
-
-    List<Offset> offsets = [];
-    for (int i = 0; i < pontos.length; i++) {
-      final vol = pontos[i]['volume'] as double;
-      final x = i * larguraPonto + larguraPonto / 2;
-      final y = alturaGrafico -
-          ((vol - minVol) / range) * (alturaGrafico - 20) - 10;
-      offsets.add(Offset(x, y));
-    }
-
-    final paintGrade = Paint()
-      ..color = Colors.white.withOpacity(0.06)
-      ..strokeWidth = 1;
-    for (int i = 0; i <= 4; i++) {
-      final y = (alturaGrafico / 4) * i;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paintGrade);
-    }
-
-    if (offsets.length > 1) {
-      final pathArea = Path()
-        ..moveTo(offsets.first.dx, alturaGrafico);
-      for (final o in offsets) pathArea.lineTo(o.dx, o.dy);
-      pathArea.lineTo(offsets.last.dx, alturaGrafico);
-      pathArea.close();
-      canvas.drawPath(
-          pathArea,
-          Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                const Color(0xFF43A047).withOpacity(0.3),
-                const Color(0xFF43A047).withOpacity(0.0),
-              ],
-            ).createShader(
-                Rect.fromLTWH(0, 0, size.width, alturaGrafico)));
-
-      final pathLinha = Path()
-        ..moveTo(offsets.first.dx, offsets.first.dy);
-      for (int i = 1; i < offsets.length; i++) {
-        pathLinha.lineTo(offsets[i].dx, offsets[i].dy);
-      }
-      canvas.drawPath(
-          pathLinha,
-          Paint()
-            ..color = const Color(0xFF66BB6A)
-            ..strokeWidth = 2.5
-            ..strokeCap = StrokeCap.round
-            ..style = PaintingStyle.stroke);
-    }
-
-    for (int i = 0; i < offsets.length; i++) {
-      final o = offsets[i];
-      final vol = pontos[i]['volume'] as double;
-      final data = pontos[i]['data'] as DateTime;
-      final isPeak = vol == maxVol;
-
-      canvas.drawCircle(
-          o,
-          isPeak ? 7 : 5,
-          Paint()
-            ..color = isPeak
-                ? Colors.amberAccent
-                : const Color(0xFF66BB6A)
-            ..style = PaintingStyle.fill);
-      canvas.drawCircle(
-          o,
-          isPeak ? 7 : 5,
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5);
-
-      final label = isToneladas
-          ? '${vol.toStringAsFixed(2)}t'
-          : '${vol.toStringAsFixed(0)}kg';
-      final tp = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: TextStyle(
-              color: isPeak ? Colors.amberAccent : Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.bold),
-        ),
-        textDirection: ui.TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(o.dx - tp.width / 2, o.dy - 20));
-
-      final dp = TextPainter(
-        text: TextSpan(
-          text:
-              '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}',
-          style: const TextStyle(color: Colors.white38, fontSize: 9),
-        ),
-        textDirection: ui.TextDirection.ltr,
-      )..layout();
-      dp.paint(
-          canvas, Offset(o.dx - dp.width / 2, alturaGrafico + 8));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}

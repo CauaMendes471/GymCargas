@@ -169,7 +169,7 @@ class _GymRegisterPageState extends State<GymRegisterPage> {
             const SizedBox(height: 4),
             const Text(
               "Comece sua jornada hoje.",
-              style: TextStyle(color: Colors.white38, fontSize: 13),
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 24),
 
@@ -182,7 +182,7 @@ class _GymRegisterPageState extends State<GymRegisterPage> {
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: Text("ou cadastre com e-mail",
-                      style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ),
                 Expanded(child: Divider(color: Colors.white12)),
               ],
@@ -248,11 +248,19 @@ class _GymRegisterPageState extends State<GymRegisterPage> {
               children: [
                 const Text("Já tem conta? ",
                     style: TextStyle(color: Colors.white54)),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Text("Entrar",
-                      style: TextStyle(color: Colors.orangeAccent,
-                          fontWeight: FontWeight.bold)),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(6),
+                    child: const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                      child: Text("Entrar",
+                          style: TextStyle(color: Colors.orangeAccent,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -277,7 +285,7 @@ class _GymRegisterPageState extends State<GymRegisterPage> {
         filled: true,
         fillColor: Colors.white.withOpacity(0.07),
         hintText: label,
-        hintStyle: const TextStyle(color: Colors.white38),
+        hintStyle: const TextStyle(color: Colors.white70),
         prefixIcon: Icon(icon, color: Colors.orangeAccent),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
@@ -305,7 +313,7 @@ class _GymRegisterPageState extends State<GymRegisterPage> {
         filled: true,
         fillColor: Colors.white.withOpacity(0.07),
         hintText: label,
-        hintStyle: const TextStyle(color: Colors.white38),
+        hintStyle: const TextStyle(color: Colors.white70),
         prefixIcon: const Icon(Icons.lock_outline, color: Colors.orangeAccent),
         suffixIcon: IconButton(
           icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,

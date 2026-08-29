@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'constants/app_constants.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
 
 class CriarTreinoPage extends StatefulWidget {
@@ -102,7 +103,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
               onPressed: () =>
                   setState(() => _mostrandoTemplates = false),
               child: const Text('VOLTAR',
-                  style: TextStyle(color: Colors.white38)),
+                  style: TextStyle(color: Colors.white70)),
             ),
         ],
       ),
@@ -141,7 +142,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
           const Text(
             'Crie do zero ou use um template\ncomo ponto de partida.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white38, fontSize: 14),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 48),
 
@@ -182,26 +183,30 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
           const SizedBox(height: 48),
 
           // ── LINK: CRIAR TEMPLATE ───────────────────────────────────
-          GestureDetector(
-            onTap: _irParaCriarTemplate,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.03),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.bookmark_add_outlined,
-                      color: Colors.white38, size: 16),
-                  SizedBox(width: 8),
-                  Text('Criar novo template',
-                      style: TextStyle(
-                          color: Colors.white38, fontSize: 13)),
-                ],
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _irParaCriarTemplate,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.bookmark_add_outlined,
+                        color: Colors.white38, size: 16),
+                    SizedBox(width: 8),
+                    Text('Criar novo template',
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 13)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -221,82 +226,86 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
   }) {
     final disabled = onTap == null && !carregando;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: disabled
-              ? Colors.white.withOpacity(0.02)
-              : cor.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
             color: disabled
-                ? Colors.white10
-                : cor.withOpacity(0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Row(children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
+                ? Colors.white.withOpacity(0.02)
+                : cor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
               color: disabled
-                  ? Colors.white.withOpacity(0.04)
-                  : cor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: carregando
-                ? Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: CircularProgressIndicator(
-                        color: cor, strokeWidth: 2),
-                  )
-                : Icon(icon,
-                    color: disabled ? Colors.white24 : cor, size: 26),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(titulo,
-                    style: TextStyle(
-                        color:
-                            disabled ? Colors.white38 : Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(descricao,
-                    style: TextStyle(
-                        color: disabled
-                            ? Colors.white24
-                            : Colors.white54,
-                        fontSize: 12)),
-              ],
+                  ? Colors.white10
+                  : cor.withOpacity(0.3),
+              width: 1.5,
             ),
           ),
-          if (badge != null)
+          child: Row(children: [
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 5),
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: cor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                color: disabled
+                    ? Colors.white.withOpacity(0.04)
+                    : cor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(badge,
-                  style: TextStyle(
-                      color: cor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold)),
-            )
-          else if (!disabled && !carregando)
-            Icon(Icons.chevron_right_rounded,
-                color: cor.withOpacity(0.6), size: 24),
-        ]),
+              child: carregando
+                  ? Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: CircularProgressIndicator(
+                          color: cor, strokeWidth: 2),
+                    )
+                  : Icon(icon,
+                      color: disabled ? Colors.white24 : cor, size: 26),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(titulo,
+                      style: TextStyle(
+                          color:
+                              disabled ? Colors.white70 : Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(descricao,
+                      style: TextStyle(
+                          color: disabled
+                              ? Colors.white54
+                              : Colors.white54,
+                          fontSize: 12)),
+                ],
+              ),
+            ),
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: cor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(badge,
+                    style: TextStyle(
+                        color: cor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
+              )
+            else if (!disabled && !carregando)
+              Icon(Icons.chevron_right_rounded,
+                  color: cor.withOpacity(0.6), size: 24),
+          ]),
+        ),
       ),
     );
   }
@@ -322,21 +331,6 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
     final nome = data['nome_treino'] ?? 'Template';
     final exercicios = (data['exercicios'] as List? ?? []);
     final musculos = (data['musculos'] as List? ?? []).cast<String>();
-
-    const kCores = <String, Color>{
-      'Peito': Color(0xFFE53935),
-      'Costas': Color(0xFF8E24AA),
-      'Ombro': Color(0xFF1E88E5),
-      'Bíceps': Color(0xFF00ACC1),
-      'Tríceps': Color(0xFF43A047),
-      'Pernas': Color(0xFFFB8C00),
-      'Glúteos': Color(0xFFD81B60),
-      'Abdômen': Color(0xFF6D4C41),
-      'Panturrilha': Color(0xFF00897B),
-      'Antebraço': Color(0xFF546E7A),
-      'Cardio': Color(0xFFE53935),
-      'Full Body': Color(0xFFFF8F00),
-    };
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -376,7 +370,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                     const SizedBox(height: 2),
                     Text('${exercicios.length} exercícios',
                         style: const TextStyle(
-                            color: Colors.white38, fontSize: 12)),
+                            color: Colors.white70, fontSize: 12)),
                   ],
                 ),
               ),
@@ -391,7 +385,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                 spacing: 6,
                 runSpacing: 4,
                 children: musculos.map((m) {
-                  final cor = kCores[m] ?? Colors.purpleAccent;
+                  final cor = kMusculoCores[m] ?? Colors.purpleAccent;
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
@@ -434,7 +428,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                                   fontSize: 13))),
                       Text('$qtd séries',
                           style: const TextStyle(
-                              color: Colors.white24,
+                              color: Colors.white54,
                               fontSize: 11)),
                     ]),
                   );
@@ -447,7 +441,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
               child: Text('+ ${exercicios.length - 3} mais...',
                   style: const TextStyle(
-                      color: Colors.white24, fontSize: 12)),
+                      color: Colors.white54, fontSize: 12)),
             ),
 
           // ── BOTÃO USAR ───────────────────────────────────────────
@@ -489,7 +483,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
               size: 64, color: Colors.white.withOpacity(0.1)),
           const SizedBox(height: 16),
           const Text('Nenhum template encontrado',
-              style: TextStyle(color: Colors.white38, fontSize: 15)),
+              style: TextStyle(color: Colors.white70, fontSize: 15)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(

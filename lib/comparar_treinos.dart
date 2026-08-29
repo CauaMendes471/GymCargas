@@ -146,56 +146,61 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
     QueryDocumentSnapshot? selecionado,
     Function(QueryDocumentSnapshot) onSelecionado,
   ) {
-    return GestureDetector(
-      onTap: () => _abrirSeletor(label, cor, onSelecionado),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selecionado != null
-              ? cor.withOpacity(0.08)
-              : Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: selecionado != null
-                  ? cor.withOpacity(0.4)
-                  : Colors.white12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: TextStyle(
-                    color: cor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1)),
-            const SizedBox(height: 8),
-            if (selecionado == null) ...[
-              Row(children: [
-                Icon(Icons.add_circle_outline, color: cor, size: 16),
-                const SizedBox(width: 6),
-                Text('Selecionar',
-                    style: TextStyle(color: cor, fontSize: 13)),
-              ]),
-            ] else ...[
-              Text(
-                selecionado['nome_treino'] ?? '-',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                DateFormat('dd/MM/yyyy').format(
-                    (selecionado['data_treino'] as Timestamp).toDate()),
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 11),
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _abrirSeletor(label, cor, onSelecionado),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selecionado != null
+                ? cor.withOpacity(0.08)
+                : Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: selecionado != null
+                    ? cor.withOpacity(0.4)
+                    : Colors.white12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: TextStyle(
+                      color: cor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1)),
+              const SizedBox(height: 8),
+              if (selecionado == null) ...[
+                Row(children: [
+                  Icon(Icons.add_circle_outline, color: cor, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Selecionar',
+                      style: TextStyle(color: cor, fontSize: 13)),
+                ]),
+              ] else ...[
+                Text(
+                  selecionado['nome_treino'] ?? '-',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('dd/MM/yyyy').format(
+                      (selecionado['data_treino'] as Timestamp)
+                          .toDate()),
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 11),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -271,7 +276,7 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
                             fontSize: 14)),
                     subtitle: Text(data,
                         style: const TextStyle(
-                            color: Colors.white38, fontSize: 12)),
+                            color: Colors.white70, fontSize: 12)),
                   );
                 },
               ),
@@ -401,7 +406,7 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
     );
   }
 
-  Widget _buildSecLabel(String label, [Color cor = Colors.white38]) {
+  Widget _buildSecLabel(String label, [Color cor = Colors.white70]) {
     return Text(label,
         style: TextStyle(
             color: cor,
@@ -551,7 +556,7 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
       child: Text(
         nota.isEmpty ? 'Sem notas' : nota,
         style: TextStyle(
-            color: nota.isEmpty ? Colors.white24 : Colors.white70,
+            color: nota.isEmpty ? Colors.white54 : Colors.white70,
             fontSize: 12),
       ),
     );
@@ -590,7 +595,7 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
         const Text(
             'Compare volume, cargas por exercício\ne veja a diferença entre os treinos.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white24, fontSize: 12)),
+            style: TextStyle(color: Colors.white54, fontSize: 12)),
       ]),
     );
   }
@@ -598,7 +603,7 @@ class _CompararTreinosPageState extends State<CompararTreinosPage> {
   Widget _buildVazio() {
     return const Center(
       child: Text('Nenhum treino registrado ainda.',
-          style: TextStyle(color: Colors.white38)),
+          style: TextStyle(color: Colors.white70)),
     );
   }
 }

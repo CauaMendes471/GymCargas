@@ -1,35 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'constants/app_constants.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
-
-// Cores dos músculos
-const _kMusculoCores = <String, Color>{
-  'Peito': Color(0xFFE53935),
-  'Costas': Color(0xFF8E24AA),
-  'Ombro': Color(0xFF1E88E5),
-  'Bíceps': Color(0xFF00ACC1),
-  'Tríceps': Color(0xFF43A047),
-  'Pernas': Color(0xFFFB8C00),
-  'Glúteos': Color(0xFFD81B60),
-  'Abdômen': Color(0xFF6D4C41),
-  'Panturrilha': Color(0xFF00897B),
-  'Antebraço': Color(0xFF546E7A),
-  'Cardio': Color(0xFFE53935),
-  'Full Body': Color(0xFFFF8F00),
-};
-
-const _kDificuldadeCor = <String, Color>{
-  'facil': Color(0xFF43A047),
-  'medio': Color(0xFFFB8C00),
-  'dificil': Color(0xFFE53935),
-};
-
-const _kDificuldadeLabel = <String, String>{
-  'facil': 'Fácil',
-  'medio': 'Médio',
-  'dificil': 'Difícil',
-};
 
 class TreinoDetalhePage extends StatelessWidget {
   final String docId;
@@ -122,7 +95,7 @@ class TreinoDetalhePage extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(dataStr,
                         style: const TextStyle(
-                            color: Colors.white38, fontSize: 13)),
+                            color: Colors.white70, fontSize: 13)),
                     const SizedBox(height: 8),
                     Text('Volume total: $volumeStr',
                         style: const TextStyle(
@@ -153,7 +126,7 @@ class TreinoDetalhePage extends StatelessWidget {
                       runSpacing: 6,
                       children: musculos.map((m) {
                         final cor =
-                            _kMusculoCores[m] ?? Colors.orangeAccent;
+                            kMusculoCores[m] ?? Colors.orangeAccent;
                         return Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 5),
@@ -235,7 +208,7 @@ class TreinoDetalhePage extends StatelessWidget {
                   fontWeight: FontWeight.bold)),
           Text(parts[1],
               style: const TextStyle(
-                  color: Colors.white38,
+                  color: Colors.white70,
                   fontSize: 10,
                   fontWeight: FontWeight.bold)),
         ]),
@@ -342,8 +315,8 @@ class TreinoDetalhePage extends StatelessWidget {
                 (s['dificuldade'] as String? ?? '').toLowerCase();
             final isPR = carga > 0 && carga == cargaMax;
 
-            final difCor = _kDificuldadeCor[dificuldade];
-            final difLabel = _kDificuldadeLabel[dificuldade];
+            final difCor = kDificuldadeCor[dificuldade];
+            final difLabel = kDificuldadeLabel[dificuldade];
 
             return Container(
               decoration: BoxDecoration(
@@ -371,7 +344,7 @@ class TreinoDetalhePage extends StatelessWidget {
                         style: TextStyle(
                             color: isPR
                                 ? Colors.amberAccent
-                                : Colors.white38,
+                                : Colors.white70,
                             fontSize: 12,
                             fontWeight: FontWeight.bold)),
                   ),
@@ -443,7 +416,7 @@ class TreinoDetalhePage extends StatelessWidget {
                       : const Text('-',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: Colors.white24, fontSize: 12)),
+                              color: Colors.white54, fontSize: 12)),
                 ),
               ]),
             );

@@ -58,7 +58,7 @@ class _PerfilPageState extends State<PerfilPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.white38)),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -112,14 +112,14 @@ class _PerfilPageState extends State<PerfilPage> {
             ),
             const SizedBox(height: 8),
             Text(user?.email ?? '',
-                style: const TextStyle(color: Colors.white38, fontSize: 13)),
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 32),
 
             // ── NOME ──────────────────────────────────────────────────
             const Align(
               alignment: Alignment.centerLeft,
               child: Text("NOME DE EXIBIÇÃO",
-                  style: TextStyle(color: Colors.white38, fontSize: 11,
+                  style: TextStyle(color: Colors.white70, fontSize: 11,
                       fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             ),
             const SizedBox(height: 8),
@@ -130,7 +130,7 @@ class _PerfilPageState extends State<PerfilPage> {
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.07),
                 hintText: "Seu nome",
-                hintStyle: const TextStyle(color: Colors.white24),
+                hintStyle: const TextStyle(color: Colors.white54),
                 prefixIcon: const Icon(Icons.person_outline,
                     color: Colors.orangeAccent),
                 enabledBorder: OutlineInputBorder(
@@ -210,7 +210,7 @@ class _PerfilPageState extends State<PerfilPage> {
                   "E-mail verificado",
                   user?.emailVerified == true ? "Verificado 🔥" : "Não verificado",
                   cor: user?.emailVerified == true
-                      ? Colors.orangeAccent : Colors.white38,
+                      ? Colors.orangeAccent : Colors.white70,
                 ),
                 const Divider(color: Colors.white10, height: 20),
                 _buildInfoRow(
@@ -232,7 +232,7 @@ class _PerfilPageState extends State<PerfilPage> {
     return Row(children: [
       Icon(icon, color: Colors.white38, size: 18),
       const SizedBox(width: 12),
-      Text(label, style: const TextStyle(color: Colors.white38, fontSize: 13)),
+      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
       const Spacer(),
       Flexible(
         child: Text(valor, textAlign: TextAlign.right,

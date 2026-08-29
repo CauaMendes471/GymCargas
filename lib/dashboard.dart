@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'constants/app_constants.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
 import 'perfil.dart';
 import 'treino_detalhe.dart';
@@ -106,26 +107,34 @@ class _GymDashboardState extends State<GymDashboard> {
 
   Widget _navItem(IconData icon, String label, int index) {
     final sel = _paginaAtual == index;
-    return GestureDetector(
-      onTap: () {
-        if (index == 3) {
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const PerfilPage()));
-        } else {
-          setState(() => _paginaAtual = index);
-        }
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              color: sel ? Colors.orangeAccent : Colors.white24,
-              size: 26),
-          Text(label,
-              style: TextStyle(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (index == 3) {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PerfilPage()));
+          } else {
+            setState(() => _paginaAtual = index);
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 10, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
                   color: sel ? Colors.orangeAccent : Colors.white24,
-                  fontSize: 10)),
-        ],
+                  size: 26),
+              Text(label,
+                  style: TextStyle(
+                      color: sel ? Colors.orangeAccent : Colors.white54,
+                      fontSize: 10)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -156,22 +165,15 @@ class _GymDashboardState extends State<GymDashboard> {
               inicioSemana.subtract(const Duration(days: 1)));
         }).length;
 
-        // Monta mapa dia-da-semana → quantidade
-        final Map<int, int> porDia = {
-          0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0
-        };
+        // Agrupa os treinos por dia (yyyy-MM-dd). Usado pelo heatmap tanto
+        // para colorir as células por volume (intensidade) quanto para
+        // abrir o(s) treino(s) daquele dia ao tocar na célula.
+        final Map<String, List<QueryDocumentSnapshot>> treinosPorDia = {};
         for (final doc in treinos) {
           final ts = doc['data_treino'] as Timestamp?;
           if (ts == null) continue;
-          final d = ts.toDate();
-          final diff = agora
-              .difference(DateTime(d.year, d.month, d.day))
-              .inDays;
-          if (diff < 7) {
-            // weekday: 1=seg..7=dom, adaptamos para 0=dom..6=sab
-            final wd = d.weekday % 7; // dom=0
-            porDia[wd] = (porDia[wd] ?? 0) + 1;
-          }
+          final chave = DateFormat('yyyy-MM-dd').format(ts.toDate());
+          treinosPorDia.putIfAbsent(chave, () => []).add(doc);
         }
 
         return SingleChildScrollView(
@@ -196,21 +198,25 @@ class _GymDashboardState extends State<GymDashboard> {
                               color: Colors.white54, fontSize: 13)),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const PerfilPage())),
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Colors.white10,
-                      backgroundImage: user?.photoURL != null
-                          ? NetworkImage(user!.photoURL!)
-                          : null,
-                      child: user?.photoURL == null
-                          ? const Icon(Icons.person,
-                              color: Colors.orangeAccent, size: 22)
-                          : null,
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const PerfilPage())),
+                      customBorder: const CircleBorder(),
+                      child: CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.white10,
+                        backgroundImage: user?.photoURL != null
+                            ? NetworkImage(user!.photoURL!)
+                            : null,
+                        child: user?.photoURL == null
+                            ? const Icon(Icons.person,
+                                color: Colors.orangeAccent, size: 22)
+                            : null,
+                      ),
                     ),
                   ),
                 ],
@@ -235,15 +241,15 @@ class _GymDashboardState extends State<GymDashboard> {
               ]),
               const SizedBox(height: 24),
 
-              // ── PROGRESSO SEMANAL ────────────────────────────────────
-              const Text('PROGRESSO SEMANAL',
+              // ── CONSISTÊNCIA ANUAL (HEATMAP) ─────────────────────────
+              const Text('CONSISTÊNCIA ANUAL',
                   style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1)),
               const SizedBox(height: 14),
-              _buildGraficoSemanal(porDia),
+              _buildHeatmapAnual(treinosPorDia),
               const SizedBox(height: 28),
 
               // ── ÚLTIMOS TREINOS ──────────────────────────────────────
@@ -300,7 +306,7 @@ class _GymDashboardState extends State<GymDashboard> {
             const SizedBox(height: 4),
             Text(label,
                 style: const TextStyle(
-                    color: Colors.white38,
+                    color: Colors.white70,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.8)),
@@ -310,79 +316,270 @@ class _GymDashboardState extends State<GymDashboard> {
     );
   }
 
-  // ── GRÁFICO SEMANAL ────────────────────────────────────────────────────────
-  Widget _buildGraficoSemanal(Map<int, int> porDia) {
-    const dias = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
-    final hoje = DateTime.now().weekday % 7; // dom=0
-    final maxVal = porDia.values.fold(0, (a, b) => a > b ? a : b);
-    final maxAltura = 90.0;
+  // ── HEATMAP DE CONSISTÊNCIA ANUAL ───────────────────────────────────────────
+  Widget _buildHeatmapAnual(
+      Map<String, List<QueryDocumentSnapshot>> treinosPorDia) {
+    const double cellSize = 12;
+    const double cellMargin = 2;
+    const double cellExtent = cellSize + cellMargin * 2;
+    const List<String> mesesAbrev = [
+      'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+    ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(7, (i) {
-        final qtd = porDia[i] ?? 0;
-        final altura = maxVal > 0
-            ? (qtd / maxVal) * maxAltura
-            : 0.0;
-        final isHoje = i == hoje;
-        final temTreino = qtd > 0;
+    final agora = DateTime.now();
+    final hoje = DateTime(agora.year, agora.month, agora.day);
 
-        return Expanded(
-          child: Column(
-            children: [
-              if (temTreino)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text('$qtd',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: Colors.orangeAccent,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                )
-              else
-                const SizedBox(height: 18),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeOut,
-                height: temTreino ? altura.clamp(18.0, maxAltura) : 6,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  gradient: temTreino
-                      ? const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0xFFFFB300),
-                            Color(0xFFFF5722),
-                          ],
-                        )
-                      : null,
-                  color: temTreino ? null : Colors.white10,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(dias[i],
-                  style: TextStyle(
-                      color: isHoje
-                          ? Colors.orangeAccent
-                          : Colors.white38,
-                      fontSize: 9,
-                      fontWeight: isHoje
-                          ? FontWeight.bold
-                          : FontWeight.normal)),
-            ],
+    // Últimos 365 dias, com o início ajustado para o domingo anterior,
+    // garantindo que cada linha do grid (índice % 7) sempre corresponda
+    // ao mesmo dia da semana (linha 0 = domingo ... linha 6 = sábado).
+    final rawStart = hoje.subtract(const Duration(days: 364));
+    final padding = rawStart.weekday % 7; // seg=1..sab=6, dom=0
+    final startDate = rawStart.subtract(Duration(days: padding));
+    final totalDias = hoje.difference(startDate).inDays + 1;
+    final numSemanas = (totalDias / 7).ceil();
+
+    // Descobre em qual semana (coluna) cada mês começa, para alinhar
+    // os rótulos "Jan, Fev, Mar..." com o grid abaixo.
+    final List<String?> labelPorSemana = List.filled(numSemanas, null);
+    int? ultimoMes;
+    for (int w = 0; w < numSemanas; w++) {
+      final dayIndex = w * 7;
+      if (dayIndex >= totalDias) break;
+      final data = startDate.add(Duration(days: dayIndex));
+      if (ultimoMes != data.month) {
+        labelPorSemana[w] = mesesAbrev[data.month - 1];
+        ultimoMes = data.month;
+      }
+    }
+
+    // Volume total por dia (soma de 'volume_total' de todos os treinos
+    // daquele dia), usado para graduar a intensidade da cor da célula.
+    final Map<String, double> volumePorDia = {
+      for (final entry in treinosPorDia.entries)
+        entry.key: entry.value.fold<double>(
+            0,
+            (soma, doc) =>
+                soma + ((doc['volume_total'] as num?)?.toDouble() ?? 0)),
+    };
+    final double maxVolumeDia = volumePorDia.values.isEmpty
+        ? 0
+        : volumePorDia.values.reduce((a, b) => a > b ? a : b);
+
+    const List<String> diasSemanaAbrev = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+    const double alturaLabelMes = 14;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── RÓTULOS DOS DIAS DA SEMANA (coluna fixa, não rola) ─────
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: Column(
+              children: [
+                const SizedBox(height: alturaLabelMes + 4),
+                ...List.generate(7, (i) {
+                  return SizedBox(
+                    height: cellExtent,
+                    child: Center(
+                      child: Text(
+                        diasSemanaAbrev[i],
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 9),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
-        );
-      }),
+          // ── MESES + GRID (rolável horizontalmente) ─────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── RÓTULOS DOS MESES ────────────────────────────
+                  SizedBox(
+                    height: alturaLabelMes,
+                    child: Row(
+                      children: List.generate(numSemanas, (w) {
+                        return SizedBox(
+                          width: cellExtent,
+                          child: Text(
+                            labelPorSemana[w] ?? '',
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 9),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // ── GRID DE DIAS (7 linhas × N semanas) ───────────
+                  SizedBox(
+                    width: numSemanas * cellExtent,
+                    height: 7 * cellExtent,
+                    child: GridView.builder(
+                      scrollDirection: Axis.horizontal,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: totalDias,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 7,
+                        mainAxisExtent: cellExtent,
+                      ),
+                      itemBuilder: (context, index) {
+                        final data =
+                            startDate.add(Duration(days: index));
+                        final chave =
+                            DateFormat('yyyy-MM-dd').format(data);
+                        final docsDoDia = treinosPorDia[chave];
+                        final treino =
+                            docsDoDia != null && docsDoDia.isNotEmpty;
+                        final cor = _corIntensidade(
+                            treino ? (volumePorDia[chave] ?? 0) : 0,
+                            maxVolumeDia,
+                            treino);
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: treino
+                                ? () =>
+                                    _abrirTreinosDoDia(docsDoDia!, data)
+                                : null,
+                            borderRadius: BorderRadius.circular(3),
+                            child: Container(
+                              margin: const EdgeInsets.all(cellMargin),
+                              decoration: BoxDecoration(
+                                color: cor,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Calcula a cor da célula do heatmap com base no volume do dia,
+  /// relativo ao dia de maior volume do período (graduação em 4 tons).
+  /// Dias sem treino ficam cinza; dias com treino nunca ficam totalmente
+  /// apagados, mesmo que o volume seja 0/desconhecido (treinos antigos
+  /// sem 'volume_total').
+  Color _corIntensidade(double volumeDoDia, double maxVolumeDia, bool treino) {
+    if (!treino) return Colors.white.withOpacity(0.06);
+    if (maxVolumeDia <= 0) return Colors.orangeAccent.withOpacity(0.6);
+    final ratio = (volumeDoDia / maxVolumeDia).clamp(0.0, 1.0);
+    if (ratio >= 0.75) return Colors.orangeAccent;
+    if (ratio >= 0.5) return Colors.orangeAccent.withOpacity(0.75);
+    if (ratio >= 0.25) return Colors.orangeAccent.withOpacity(0.5);
+    return Colors.orangeAccent.withOpacity(0.3);
+  }
+
+  /// Abre o treino do dia tocado na célula do heatmap. Se houver mais de
+  /// um treino no mesmo dia, mostra uma lista para o usuário escolher.
+  void _abrirTreinosDoDia(
+      List<QueryDocumentSnapshot> docs, DateTime data) {
+    if (docs.isEmpty) return;
+
+    if (docs.length == 1) {
+      final doc = docs.first;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TreinoDetalhePage(
+            docId: doc.id,
+            dados: doc.data() as Map<String, dynamic>,
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(DateFormat('dd/MM/yyyy').format(data),
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2)),
+            const SizedBox(height: 4),
+            Text('${docs.length} treinos nesse dia',
+                style:
+                    const TextStyle(color: Colors.white54, fontSize: 12)),
+            const SizedBox(height: 12),
+            ...docs.map((doc) {
+              final dadosDoc = doc.data() as Map<String, dynamic>;
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TreinoDetalhePage(
+                          docId: doc.id,
+                          dados: dadosDoc,
+                        ),
+                      ),
+                    );
+                  },
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.fitness_center,
+                        color: Colors.orangeAccent),
+                    title: Text(dadosDoc['nome_treino'] ?? 'Treino',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
+                    trailing: const Icon(Icons.chevron_right_rounded,
+                        color: Colors.white38),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -401,11 +598,11 @@ class _GymDashboardState extends State<GymDashboard> {
               size: 48, color: Colors.white.withOpacity(0.1)),
           const SizedBox(height: 12),
           const Text('Nenhum treino ainda',
-              style: TextStyle(color: Colors.white38, fontSize: 15)),
+              style: TextStyle(color: Colors.white70, fontSize: 15)),
           const SizedBox(height: 6),
           const Text('Toque no + para registrar seu primeiro treino!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white24, fontSize: 12)),
+              style: TextStyle(color: Colors.white54, fontSize: 12)),
         ],
       ),
     );
@@ -434,45 +631,33 @@ class _GymDashboardState extends State<GymDashboard> {
 
     final musculos = (data['musculos'] as List? ?? []).cast<String>();
 
-    // Cor do músculo (reutilizando a mesma lógica de novo_treino.dart)
-    const kMusculoCores = <String, Color>{
-      'Peito': Color(0xFFE53935),
-      'Costas': Color(0xFF8E24AA),
-      'Ombro': Color(0xFF1E88E5),
-      'Bíceps': Color(0xFF00ACC1),
-      'Tríceps': Color(0xFF43A047),
-      'Pernas': Color(0xFFFB8C00),
-      'Glúteos': Color(0xFFD81B60),
-      'Abdômen': Color(0xFF6D4C41),
-      'Panturrilha': Color(0xFF00897B),
-      'Antebraço': Color(0xFF546E7A),
-      'Cardio': Color(0xFFE53935),
-      'Full Body': Color(0xFFFF8F00),
-    };
-
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TreinoDetalhePage(
-            docId: doc.id,
-            dados: data,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TreinoDetalhePage(
+                docId: doc.id,
+                dados: data,
+              ),
+            ),
           ),
-        ),
-      ),
-      child: Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        children: [
-          // ── LINHA PRINCIPAL ──────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 8, 10),
-            child: Row(children: [
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            children: [
+              // ── LINHA PRINCIPAL ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 8, 10),
+                child: Row(children: [
               Container(
                 width: 44,
                 height: 44,
@@ -496,7 +681,7 @@ class _GymDashboardState extends State<GymDashboard> {
                     const SizedBox(height: 2),
                     Text(dataFormatada,
                         style: const TextStyle(
-                            color: Colors.white38, fontSize: 12)),
+                            color: Colors.white70, fontSize: 12)),
                   ],
                 ),
               ),
@@ -558,7 +743,9 @@ class _GymDashboardState extends State<GymDashboard> {
           ),
         ],
       ),
-    ),  // GestureDetector
+    ),
+        ),
+      ),
     );
   }
 
@@ -582,6 +769,14 @@ class _GymDashboardState extends State<GymDashboard> {
   }
 
   Widget _buildChip(IconData icon, String label, Color cor) {
+    // O ícone mantém a cor original (decorativa); o texto usa uma versão
+    // de maior contraste quando a cor original é um branco translúcido,
+    // sem alterar a cor do ícone.
+    final corTexto = cor == Colors.white24
+        ? Colors.white54
+        : cor == Colors.white38
+            ? Colors.white70
+            : cor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -594,7 +789,7 @@ class _GymDashboardState extends State<GymDashboard> {
         const SizedBox(width: 5),
         Text(label,
             style: TextStyle(
-                color: cor, fontSize: 11, fontWeight: FontWeight.w500)),
+                color: corTexto, fontSize: 11, fontWeight: FontWeight.w500)),
       ]),
     );
   }
@@ -670,7 +865,7 @@ class _GymDashboardState extends State<GymDashboard> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar',
-                style: TextStyle(color: Colors.white38)),
+                style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -743,7 +938,7 @@ class _GymDashboardState extends State<GymDashboard> {
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: 'Buscar treino...',
-              hintStyle: const TextStyle(color: Colors.white38),
+              hintStyle: const TextStyle(color: Colors.white70),
               prefixIcon:
                   const Icon(Icons.search, color: Colors.white24),
               filled: true,
@@ -782,17 +977,14 @@ class _GymDashboardState extends State<GymDashboard> {
                       (a['nome_treino'] ?? '').toString()
                           .compareTo((b['nome_treino'] ?? '').toString()));
                 } else if (_ordemHistorico == 'volume') {
-                  double _vol(QueryDocumentSnapshot d) {
-                    double v = 0;
-                    for (final ex in (d['exercicios'] as List? ?? [])) {
-                      for (final s in (ex['series'] as List? ?? [])) {
-                        v += (double.tryParse(s['carga']?.toString() ?? '') ?? 0) *
-                            (double.tryParse(s['reps']?.toString() ?? '') ?? 0);
-                      }
-                    }
-                    return v;
-                  }
-                  treinos.sort((a, b) => _vol(b).compareTo(_vol(a)));
+                  // Lê o volume já calculado e persistido no Firestore
+                  // (campo 'volume_total', gravado em _salvarTreino())
+                  // em vez de recalcular somando carga × reps aqui.
+                  treinos.sort((a, b) =>
+                      ((b['volume_total'] as num?)?.toDouble() ?? 0.0)
+                          .compareTo(
+                              (a['volume_total'] as num?)?.toDouble() ??
+                                  0.0));
                 }
                 // 'data' já vem ordenado do Firestore
 
@@ -814,70 +1006,74 @@ class _GymDashboardState extends State<GymDashboard> {
 
   // ── SELETOR DE ORDENAÇÃO ───────────────────────────────────────────────────
   Widget _buildOrdemSelector() {
-    return GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: const Color(0xFF1A1A1A),
-          shape: const RoundedRectangleBorder(
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(20))),
-          builder: (ctx) => Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: const Color(0xFF1A1A1A),
+            shape: const RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(20))),
+            builder: (ctx) => Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                const Text('ORDENAR POR',
-                    style: TextStyle(
-                        color: Colors.white38,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2)),
-                const SizedBox(height: 12),
-                _buildOrdemOpcao(ctx, 'data', Icons.calendar_today_rounded, 'Data (mais recente)'),
-                _buildOrdemOpcao(ctx, 'volume', Icons.monitor_weight_outlined, 'Volume (maior primeiro)'),
-                _buildOrdemOpcao(ctx, 'nome', Icons.sort_by_alpha_rounded, 'Nome (A → Z)'),
-              ],
+                  const SizedBox(height: 20),
+                  const Text('ORDENAR POR',
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2)),
+                  const SizedBox(height: 12),
+                  _buildOrdemOpcao(ctx, 'data', Icons.calendar_today_rounded, 'Data (mais recente)'),
+                  _buildOrdemOpcao(ctx, 'volume', Icons.monitor_weight_outlined, 'Volume (maior primeiro)'),
+                  _buildOrdemOpcao(ctx, 'nome', Icons.sort_by_alpha_rounded, 'Nome (A → Z)'),
+                ],
+              ),
             ),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white12),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.sort_rounded,
+                color: Colors.orangeAccent, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              _ordemHistorico == 'data'
+                  ? 'Data'
+                  : _ordemHistorico == 'volume'
+                      ? 'Volume'
+                      : 'Nome',
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white38, size: 14),
+          ]),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.sort_rounded,
-              color: Colors.orangeAccent, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            _ordemHistorico == 'data'
-                ? 'Data'
-                : _ordemHistorico == 'volume'
-                    ? 'Volume'
-                    : 'Nome',
-            style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 4),
-          const Icon(Icons.keyboard_arrow_down,
-              color: Colors.white38, size: 14),
-        ]),
       ),
     );
   }

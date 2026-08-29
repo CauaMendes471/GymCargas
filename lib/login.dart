@@ -102,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
                       letterSpacing: 2)),
               const SizedBox(height: 6),
               const Text("Bata seus recordes hoje.",
-                  style: TextStyle(color: Colors.white38, fontSize: 14)),
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
               const SizedBox(height: 40),
 
               _buildField(
@@ -122,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.07),
                   hintText: "Senha",
-                  hintStyle: const TextStyle(color: Colors.white38),
+                  hintStyle: const TextStyle(color: Colors.white70),
                   prefixIcon: const Icon(Icons.lock_outline,
                       color: Colors.orangeAccent),
                   suffixIcon: IconButton(
@@ -158,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                   Expanded(child: Divider(color: Colors.white12)),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text("ou", style: TextStyle(color: Colors.white38)),
+                    child: Text("ou", style: TextStyle(color: Colors.white70)),
                   ),
                   Expanded(child: Divider(color: Colors.white12)),
                 ],
@@ -173,16 +173,24 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const Text("Não tem conta? ",
                       style: TextStyle(color: Colors.white54)),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const GymRegisterPage()),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const GymRegisterPage()),
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 2, vertical: 2),
+                        child: Text("Cadastre-se",
+                            style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold)),
+                      ),
                     ),
-                    child: const Text("Cadastre-se",
-                        style: TextStyle(
-                            color: Colors.orangeAccent,
-                            fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -207,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
         filled: true,
         fillColor: Colors.white.withOpacity(0.07),
         hintText: label,
-        hintStyle: const TextStyle(color: Colors.white38),
+        hintStyle: const TextStyle(color: Colors.white70),
         prefixIcon: Icon(icon, color: Colors.orangeAccent),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),

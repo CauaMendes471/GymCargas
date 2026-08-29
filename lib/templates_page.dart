@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'constants/app_constants.dart';
 import 'novo_treino.dart' show NovoTreinoPage;
 
 class TemplatesPage extends StatefulWidget {
@@ -60,7 +61,7 @@ class _TemplatesPageState extends State<TemplatesPage> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar',
-                style: TextStyle(color: Colors.white38)),
+                style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -191,21 +192,6 @@ class _TemplatesPageState extends State<TemplatesPage> {
     final exercicios = (data['exercicios'] as List? ?? []);
     final musculos = (data['musculos'] as List? ?? []).cast<String>();
 
-    const kCores = <String, Color>{
-      'Peito': Color(0xFFE53935),
-      'Costas': Color(0xFF8E24AA),
-      'Ombro': Color(0xFF1E88E5),
-      'Bíceps': Color(0xFF00ACC1),
-      'Tríceps': Color(0xFF43A047),
-      'Pernas': Color(0xFFFB8C00),
-      'Glúteos': Color(0xFFD81B60),
-      'Abdômen': Color(0xFF6D4C41),
-      'Panturrilha': Color(0xFF00897B),
-      'Antebraço': Color(0xFF546E7A),
-      'Cardio': Color(0xFFE53935),
-      'Full Body': Color(0xFFFF8F00),
-    };
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -245,7 +231,7 @@ class _TemplatesPageState extends State<TemplatesPage> {
                     Text(
                       '${exercicios.length} exercício${exercicios.length != 1 ? 's' : ''}',
                       style: const TextStyle(
-                          color: Colors.white38, fontSize: 12),
+                          color: Colors.white70, fontSize: 12),
                     ),
                   ],
                 ),
@@ -275,7 +261,7 @@ class _TemplatesPageState extends State<TemplatesPage> {
                 spacing: 6,
                 runSpacing: 4,
                 children: musculos.map((m) {
-                  final cor = kCores[m] ?? Colors.purpleAccent;
+                  final cor = kMusculoCores[m] ?? Colors.purpleAccent;
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
@@ -318,7 +304,7 @@ class _TemplatesPageState extends State<TemplatesPage> {
                                   fontSize: 13))),
                       Text('$qtd x',
                           style: const TextStyle(
-                              color: Colors.white38,
+                              color: Colors.white70,
                               fontSize: 12)),
                     ]),
                   );
@@ -332,7 +318,7 @@ class _TemplatesPageState extends State<TemplatesPage> {
               child: Text(
                 '+ ${exercicios.length - 4} exercício(s)...',
                 style: const TextStyle(
-                    color: Colors.white24, fontSize: 12),
+                    color: Colors.white54, fontSize: 12),
               ),
             ),
 
@@ -379,12 +365,12 @@ class _TemplatesPageState extends State<TemplatesPage> {
             const SizedBox(height: 16),
             const Text('Nenhum template ainda',
                 style: TextStyle(
-                    color: Colors.white38, fontSize: 16)),
+                    color: Colors.white70, fontSize: 16)),
             const SizedBox(height: 8),
             const Text(
               'Crie um template para reutilizar\numa estrutura de treino sem digitar\ntudo de novo toda vez.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white24, fontSize: 13),
+              style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
             const SizedBox(height: 28),
             ElevatedButton.icon(
